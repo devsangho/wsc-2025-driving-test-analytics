@@ -33,7 +33,9 @@ export function AppSidebar() {
     <Sidebar>
       <div className="flex h-full flex-col gap-4 p-4">
         <div className="flex h-[60px] items-center px-2">
-          <h2 className="text-lg font-semibold">WSC 2025</h2>
+          <h2 className="text-lg font-semibold">
+            WSC 2025 Driving Analytics Tool
+          </h2>
         </div>
         <div className="flex-1 overflow-auto">
           <NavMain items={navItems} />
