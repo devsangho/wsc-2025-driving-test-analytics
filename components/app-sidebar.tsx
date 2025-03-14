@@ -1,28 +1,27 @@
 "use client";
 
-import { Activity, Battery, Gauge, Zap } from "lucide-react";
 import { NavMain } from "@/components/nav-main";
 import { Sidebar } from "@/components/ui/sidebar";
+import { Battery, Gauge, Zap } from "lucide-react";
 
-const navItems = [
+const items = [
   {
     title: "Dashboard",
     url: "/dashboard",
-    icon: Activity,
-    isActive: true,
+    icon: Gauge,
   },
   {
-    title: "BMS Data",
+    title: "BMS",
     url: "/bms",
     icon: Battery,
   },
   {
-    title: "MPPT Data",
+    title: "MPPT",
     url: "/mppt",
     icon: Zap,
   },
   {
-    title: "Velocity Data",
+    title: "Velocity",
     url: "/velocity",
     icon: Gauge,
   },
@@ -31,14 +30,28 @@ const navItems = [
 export function AppSidebar() {
   return (
     <Sidebar>
-      <div className="flex h-full flex-col gap-4 p-4">
-        <div className="flex h-[60px] items-center px-2">
-          <h2 className="text-lg font-semibold">
-            WSC 2025 Driving Analytics Tool
-          </h2>
+      <div className="flex h-full flex-col gap-4">
+        <div className="px-4 py-4">
+          <h1 className="text-lg font-semibold leading-none">WSC SNU SOLO</h1>
+          <p className="text-sm text-muted-foreground">
+            Driving Test Analytics
+          </p>
         </div>
-        <div className="flex-1 overflow-auto">
-          <NavMain items={navItems} />
+        <div className="px-2">
+          <NavMain items={items} />
+        </div>
+        <div className="mt-auto px-4 py-4 text-xs text-muted-foreground">
+          <div className="flex flex-col items-start gap-1">
+            <a
+              href="https://github.com/devsangho"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline"
+            >
+              developed by @devsangho
+            </a>
+            <span>AIRLaboratory</span>
+          </div>
         </div>
       </div>
     </Sidebar>
