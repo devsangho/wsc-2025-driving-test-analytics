@@ -32,7 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useDataContext } from "@/app/layout";
+import { useDataContext } from "@/app/contexts/data-context";
 import { format } from "date-fns";
 
 export default function Page() {

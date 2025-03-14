@@ -16,7 +16,7 @@ import {
 import { LineChart } from "@/components/line-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useDataContext } from "@/app/layout";
+import { useDataContext } from "@/app/contexts/data-context";
 
 export default function BMSPage() {
   const { data } = useDataContext();

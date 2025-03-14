@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useDataContext } from "@/app/layout";
+import { useDataContext } from "@/app/contexts/data-context";
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 

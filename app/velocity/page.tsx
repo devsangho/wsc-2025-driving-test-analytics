@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/sidebar";
 import { LineChart } from "@/components/line-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useDataContext } from "@/app/layout";
+import { useDataContext } from "@/app/contexts/data-context";
 
 export default function VelocityPage() {
   const { data } = useDataContext();

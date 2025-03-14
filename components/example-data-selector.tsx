@@ -2,8 +2,8 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useDataContext } from "@/app/layout";
-import Papa, { ParseError } from "papaparse";
+import { useDataContext } from "@/app/contexts/data-context";
+import Papa from "papaparse";
 import { DataRow } from "@/types/data";
 import { FileText } from "lucide-react";
 import { toast } from "sonner";
@@ -40,13 +40,13 @@ export function ExampleDataSelector() {
             description: "Navigate through the sidebar menu to analyze different aspects of the data.",
           });
         },
-        error: (error: ParseError) => {
+        error: (error: Error) => {
           toast.error("Failed to parse example data", {
             description: error.message,
           });
         },
       });
-    } catch (error: unknown) {
+    } catch (error) {
       console.error("Failed to load example data:", error);
       toast.error("Failed to load example data", {
         description: "Please try again later.",

@@ -16,8 +16,12 @@ import {
 import { LineChart } from "@/components/line-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useDataContext } from "@/app/contexts/data-context";
+import { DataRow } from "@/types/data";
 
 export default function MPPTPage() {
+  const { data } = useDataContext();
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -51,10 +55,10 @@ export default function MPPTPage() {
                   </CardHeader>
                   <CardContent>
                     <LineChart
-                      data={[]} // TODO: Add data from context or state management
+                      data={data}
                       title={`MPPT ${num} Input Voltage over Time`}
-                      xAxisKey="Timestamp"
-                      yAxisKey={`MPPT${num}_InputVoltage`}
+                      xAxisKey={"Timestamp" as keyof DataRow}
+                      yAxisKey={`MPPT${num}_InputVoltage` as keyof DataRow}
                       yAxisLabel="Input Voltage (V)"
                     />
                   </CardContent>
@@ -65,10 +69,10 @@ export default function MPPTPage() {
                   </CardHeader>
                   <CardContent>
                     <LineChart
-                      data={[]} // TODO: Add data from context or state management
+                      data={data}
                       title={`MPPT ${num} Output Voltage over Time`}
-                      xAxisKey="Timestamp"
-                      yAxisKey={`MPPT${num}_OutputVoltage`}
+                      xAxisKey={"Timestamp" as keyof DataRow}
+                      yAxisKey={`MPPT${num}_OutputVoltage` as keyof DataRow}
                       yAxisLabel="Output Voltage (V)"
                     />
                   </CardContent>
@@ -79,10 +83,10 @@ export default function MPPTPage() {
                   </CardHeader>
                   <CardContent>
                     <LineChart
-                      data={[]} // TODO: Add data from context or state management
+                      data={data}
                       title={`MPPT ${num} Temperature over Time`}
-                      xAxisKey="Timestamp"
-                      yAxisKey={`MPPT${num}_FetTemp`}
+                      xAxisKey={"Timestamp" as keyof DataRow}
+                      yAxisKey={`MPPT${num}_FetTemp` as keyof DataRow}
                       yAxisLabel="Temperature (°C)"
                     />
                   </CardContent>

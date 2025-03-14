@@ -2,8 +2,8 @@
 
 import { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import Papa, { ParseError } from "papaparse";
-import { useDataContext } from "@/app/layout";
+import Papa from "papaparse";
+import { useDataContext } from "@/app/contexts/data-context";
 import { DataRow } from "@/types/data";
 import { toast } from "sonner";
 
@@ -38,14 +38,14 @@ export default function CSVUploader({ onUploadSuccess }: CSVUploaderProps) {
                 description: "Use the sidebar menu to explore and analyze your data.",
               });
             },
-            error: (error: ParseError) => {
+            error: (error: Error) => {
               toast.error("Failed to parse CSV file", {
                 description: error.message,
               });
             },
           });
         };
-        reader.onerror = (error: ProgressEvent<FileReader>) => {
+        reader.onerror = () => {
           toast.error("Failed to read CSV file", {
             description: "Please check if the file is valid and try again.",
           });
