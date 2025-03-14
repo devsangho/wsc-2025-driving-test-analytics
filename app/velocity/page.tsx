@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
 import {
   Breadcrumb,
@@ -16,9 +18,19 @@ import {
 import { LineChart } from "@/components/line-chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useDataContext } from "@/app/contexts/data-context";
+import { DataRow } from "@/types/data";
 
 export default function VelocityPage() {
   const { data } = useDataContext();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (data.length === 0) {
+      router.push("/dashboard");
+    }
+  }, [data, router]);
+
+  if (data.length === 0) return null;
 
   return (
     <SidebarProvider>
@@ -40,14 +52,14 @@ export default function VelocityPage() {
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
           <Card>
             <CardHeader>
-              <CardTitle>Vehicle Velocity</CardTitle>
+              <CardTitle>Velocity</CardTitle>
             </CardHeader>
             <CardContent>
               <LineChart
                 data={data}
-                title="Vehicle Velocity over Time"
-                xAxisKey="Timestamp"
-                yAxisKey="Velocity"
+                title="Velocity over Time"
+                xAxisKey={"Timestamp" as keyof DataRow}
+                yAxisKey={"Velocity" as keyof DataRow}
                 yAxisLabel="Velocity (km/h)"
               />
             </CardContent>

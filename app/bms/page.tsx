@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
 import {
   Breadcrumb,
@@ -20,6 +22,15 @@ import { useDataContext } from "@/app/contexts/data-context";
 
 export default function BMSPage() {
   const { data } = useDataContext();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (data.length === 0) {
+      router.push("/dashboard");
+    }
+  }, [data, router]);
+
+  if (data.length === 0) return null;
 
   return (
     <SidebarProvider>
