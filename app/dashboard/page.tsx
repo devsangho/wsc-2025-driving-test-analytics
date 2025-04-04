@@ -39,7 +39,6 @@ export default function Page() {
   const [showGuide, setShowGuide] = useState(false);
   const { data } = useDataContext();
 
-  // 표시할 주요 필드 선택
   const displayFields = [
     "Timestamp",
     "BMS_Voltage",
@@ -115,7 +114,10 @@ export default function Page() {
                           {displayFields.map((field) => (
                             <TableCell key={field}>
                               {field === "Timestamp"
-                                ? format(new Date(row[field]), "yyyy-MM-dd HH:mm:ss")
+                                ? format(
+                                    new Date(row[field]),
+                                    "yyyy-MM-dd HH:mm:ss"
+                                  )
                                 : row[field as keyof typeof row] ?? "-"}
                             </TableCell>
                           ))}

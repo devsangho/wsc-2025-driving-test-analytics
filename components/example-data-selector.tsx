@@ -1,82 +1,99 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useDataContext } from "@/app/contexts/data-context";
 import Papa from "papaparse";
-import { DataRow } from "@/types/data";
-import { FileText } from "lucide-react";
 import { toast } from "sonner";
+import { DataRow } from "@/types/data";
 
-const exampleFiles = [
-  {
-    name: "MPPT 610 Data",
-    path: "/data/mppt610.csv",
-    description: "Example MPPT data from testing",
-  },
-];
+interface ExampleFile {
+  name: string;
+  path: string;
+  description: string;
+}
 
 export function ExampleDataSelector() {
   const { setData } = useDataContext();
+  const [exampleFiles, setExampleFiles] = useState<ExampleFile[]>([]);
+
+  useEffect(() => {
+    async function fetchExampleFiles() {
+      try {
+        const response = await fetch("/api/example-files");
+        const files = await response.json();
+        setExampleFiles(files);
+      } catch (error) {
+        console.error("Failed to fetch example files:", error);
+        toast.error("Failed to load example files");
+      }
+    }
+
+    fetchExampleFiles();
+  }, []);
 
   const loadExampleData = async (path: string) => {
     try {
       const response = await fetch(path);
       const csvText = await response.text();
-      
-      Papa.parse<DataRow>(csvText, {
+
+      Papa.parse(csvText, {
         header: true,
         skipEmptyLines: "greedy",
-        dynamicTyping: (field) => field !== "BMS_PackFaultStatus",
         transformHeader: (header) => header.trim(),
-        transform: (value) => {
-          if (value === "") return null;
-          return value;
-        },
-        complete: (result) => {
-          const parsedData = result.data.filter((row) => row.Timestamp);
-          setData(parsedData);
-          toast.success("Example data loaded successfully", {
-            description: "Navigate through the sidebar menu to analyze different aspects of the data.",
-          });
+        dynamicTyping: (field) => field !== "BMS_PackFaultStatus",
+        complete: (results) => {
+          if (results.errors.length > 0) {
+            console.error("CSV parsing errors:", results.errors);
+            toast.error("Error parsing CSV file");
+            return;
+          }
+
+          const parsedData = (results.data as unknown[])
+            .map((row) => {
+              const typedRow = row as Record<string, unknown>;
+              Object.keys(typedRow).forEach((key) => {
+                if (typedRow[key] === "") {
+                  typedRow[key] = null;
+                }
+              });
+              return typedRow;
+            })
+            .filter((row) => row.Timestamp);
+
+          setData(parsedData as unknown as DataRow[]);
+          toast.success(
+            "Example data loaded successfully! You can now analyze the data through the sidebar menu."
+          );
         },
         error: (error: Error) => {
-          toast.error("Failed to parse example data", {
-            description: error.message,
-          });
+          console.error("CSV parsing error:", error);
+          toast.error("Error parsing CSV file");
         },
       });
     } catch (error) {
       console.error("Failed to load example data:", error);
-      toast.error("Failed to load example data", {
-        description: "Please try again later.",
-      });
+      toast.error("Failed to load example data");
     }
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Example Data</CardTitle>
+        <CardTitle>Example Data</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="flex flex-col gap-4">
         {exampleFiles.map((file) => (
           <Button
             key={file.path}
             variant="outline"
-            className="w-full justify-start gap-2"
             onClick={() => loadExampleData(file.path)}
           >
-            <FileText className="h-4 w-4" />
-            <div className="flex flex-col items-start text-left">
-              <span className="text-sm font-medium">{file.name}</span>
-              <span className="text-xs text-muted-foreground">
-                {file.description}
-              </span>
-            </div>
+            {file.name}
           </Button>
         ))}
       </CardContent>
     </Card>
   );
-} 
+}
