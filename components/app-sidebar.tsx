@@ -2,7 +2,7 @@
 
 import { NavMain } from "@/components/nav-main";
 import { Sidebar } from "@/components/ui/sidebar";
-import { Battery, Gauge, Zap } from "lucide-react";
+import { Battery, Gauge } from "lucide-react";
 
 const items = [
   {
@@ -11,19 +11,42 @@ const items = [
     icon: Gauge,
   },
   {
-    title: "BMS",
-    url: "/bms",
+    title: "CAN",
+    url: "/can",
     icon: Battery,
+    items: [
+      {
+        title: "BMS",
+        url: "/can/bms",
+      },
+      {
+        title: "MPPT",
+        url: "/can/mppt",
+      },
+      {
+        title: "Velocity",
+        url: "/can/velocity",
+      },
+    ],
   },
   {
-    title: "MPPT",
-    url: "/mppt",
-    icon: Zap,
-  },
-  {
-    title: "Velocity",
-    url: "/velocity",
+    title: "MS60S",
+    url: "/ms60s",
     icon: Gauge,
+    items: [
+      {
+        title: "Irradiance",
+        url: "/ms60s/irradiance",
+      },
+      {
+        title: "Tilt",
+        url: "/ms60s/tilt",
+      },
+      {
+        title: "Temperature",
+        url: "/ms60s/temperature",
+      },
+    ],
   },
 ];
 
