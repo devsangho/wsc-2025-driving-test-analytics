@@ -1,34 +1,16 @@
 "use client";
 
-import { useRef } from "react";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  ChartOptions,
-  ChartData,
-} from "chart.js";
-import { Line } from "react-chartjs-2";
+import { useRef, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+import { ChartOptions, ChartData } from "chart.js";
 import { DataRow } from "@/types/data";
-import zoomPlugin from "chartjs-plugin-zoom";
 import { Button } from "./ui/button";
 import { RefreshCw } from "lucide-react";
 
-// Chart.js에 필요한 요소 등록
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  zoomPlugin
+// Chart.js 컴포넌트를 동적으로 불러오기
+const Line = dynamic(
+  () => import("react-chartjs-2").then((mod) => mod.Line),
+  { ssr: false }
 );
 
 interface LineChartProps {
@@ -46,7 +28,33 @@ export function LineChart({
   yAxisKey,
   yAxisLabel,
 }: LineChartProps) {
-  const chartRef = useRef<ChartJS<"line">>(null);
+  const chartRef = useRef(null);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+    // Chart.js에 필요한 요소 등록
+    import("chart.js").then((ChartJS) => {
+      ChartJS.Chart.register(
+        ChartJS.CategoryScale,
+        ChartJS.LinearScale,
+        ChartJS.PointElement,
+        ChartJS.LineElement,
+        ChartJS.Title,
+        ChartJS.Tooltip,
+        ChartJS.Legend
+      );
+    });
+    import("chartjs-plugin-zoom").then((zoomPlugin) => {
+      import("chart.js").then((ChartJS) => {
+        ChartJS.Chart.register(zoomPlugin.default);
+      });
+    });
+  }, []);
+
+  if (!isClient) {
+    return <div>Loading chart...</div>;
+  }
 
   const chartData: ChartData<"line"> = {
     labels: data.map((row) => row[xAxisKey]),
@@ -106,6 +114,7 @@ export function LineChart({
 
   const resetZoom = () => {
     if (chartRef.current) {
+      // @ts-expect-error: Chart.js type definitions are incomplete for the zoom plugin
       chartRef.current.resetZoom();
     }
   };

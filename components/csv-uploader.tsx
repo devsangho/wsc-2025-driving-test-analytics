@@ -7,7 +7,7 @@ import { useDataContext } from "@/app/contexts/data-context";
 import { DataRow } from "@/types/data";
 import { toast } from "sonner";
 import { storage } from "@/lib/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes } from "firebase/storage";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface CSVUploaderProps {
