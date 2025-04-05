@@ -14,6 +14,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import CSVUploader from "@/components/csv-uploader";
+import CSVFileList from "@/components/csv-file-list";
 import {
   Card,
   CardContent,
@@ -23,7 +24,6 @@ import {
 } from "@/components/ui/card";
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ExampleDataSelector } from "@/components/example-data-selector";
 import {
   Table,
   TableBody,
@@ -37,16 +37,14 @@ import { format } from "date-fns";
 
 export default function Page() {
   const [showGuide, setShowGuide] = useState(false);
+  const [updateKey, setUpdateKey] = useState(0);
   const { data } = useDataContext();
 
-  const displayFields = [
-    "Timestamp",
-    "BMS_Voltage",
-    "BMS_Current",
-    "BMS_SoC",
-    "BMS_PackFaultStatus",
-    "Velocity",
-  ];
+  const handleUpdate = () => {
+    setUpdateKey(prev => prev + 1);
+  };
+
+  const columns = data.length > 0 ? Object.keys(data[0]) : [];
 
   return (
     <SidebarProvider>
@@ -75,10 +73,23 @@ export default function Page() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <CSVUploader onUploadSuccess={() => setShowGuide(true)} />
+              <CSVUploader 
+                onUploadSuccess={() => setShowGuide(true)} 
+                onUpdate={handleUpdate}
+              />
             </CardContent>
           </Card>
-          <ExampleDataSelector />
+          <Card>
+            <CardHeader>
+              <CardTitle>Saved Files</CardTitle>
+              <CardDescription>
+                Previously uploaded CSV files. Click on a file to load it.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CSVFileList key={updateKey} onUpdate={handleUpdate} />
+            </CardContent>
+          </Card>
           {showGuide && (
             <Alert>
               <AlertDescription>
@@ -93,17 +104,17 @@ export default function Page() {
               <CardHeader>
                 <CardTitle>Data Preview</CardTitle>
                 <CardDescription>
-                  Showing the first 10 rows of the uploaded data
+                  Showing the first 10 rows of the raw CSV data
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border">
+                <div className="rounded-md border overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {displayFields.map((field) => (
-                          <TableHead key={field}>
-                            {field.replace(/_/g, " ")}
+                        {columns.map((column) => (
+                          <TableHead key={column} className="whitespace-nowrap">
+                            {column}
                           </TableHead>
                         ))}
                       </TableRow>
@@ -111,14 +122,9 @@ export default function Page() {
                     <TableBody>
                       {data.slice(0, 10).map((row, index) => (
                         <TableRow key={index}>
-                          {displayFields.map((field) => (
-                            <TableCell key={field}>
-                              {field === "Timestamp"
-                                ? format(
-                                    new Date(row[field]),
-                                    "yyyy-MM-dd HH:mm:ss"
-                                  )
-                                : row[field as keyof typeof row] ?? "-"}
+                          {columns.map((column) => (
+                            <TableCell key={column} className="whitespace-nowrap">
+                              {row[column as keyof typeof row]?.toString() ?? "-"}
                             </TableCell>
                           ))}
                         </TableRow>
