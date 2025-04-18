@@ -38,6 +38,7 @@
     "@radix-ui/react-tooltip": "^1.1.8",
     "chart.js": "^4.4.8",
     "chartjs-adapter-date-fns": "^3.0.0",
+    "chartjs-plugin-annotation": "^3.1.0",
     "chartjs-plugin-zoom": "^2.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
