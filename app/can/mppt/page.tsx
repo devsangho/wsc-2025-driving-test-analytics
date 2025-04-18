@@ -22,16 +22,16 @@ import { useDataContext } from "@/app/contexts/data-context";
 import { DataRow } from "@/types/data";
 
 export default function MPPTPage() {
-  const { data } = useDataContext();
+  const { currentData } = useDataContext();
   const router = useRouter();
 
   useEffect(() => {
-    if (data.length === 0) {
+    if (!currentData || currentData.length === 0) {
       router.push("/dashboard");
     }
-  }, [data, router]);
+  }, [currentData, router]);
 
-  if (data.length === 0) return null;
+  if (!currentData || currentData.length === 0) return null;
 
   return (
     <SidebarProvider>
@@ -66,7 +66,7 @@ export default function MPPTPage() {
                   </CardHeader>
                   <CardContent>
                     <LineChart
-                      data={data}
+                      data={currentData}
                       title={`MPPT ${num} Input Voltage over Time`}
                       xAxisKey={"Timestamp" as keyof DataRow}
                       yAxisKey={`MPPT${num}_InputVoltage` as keyof DataRow}
@@ -80,7 +80,7 @@ export default function MPPTPage() {
                   </CardHeader>
                   <CardContent>
                     <LineChart
-                      data={data}
+                      data={currentData}
                       title={`MPPT ${num} Output Voltage over Time`}
                       xAxisKey={"Timestamp" as keyof DataRow}
                       yAxisKey={`MPPT${num}_OutputVoltage` as keyof DataRow}
@@ -94,7 +94,7 @@ export default function MPPTPage() {
                   </CardHeader>
                   <CardContent>
                     <LineChart
-                      data={data}
+                      data={currentData}
                       title={`MPPT ${num} Temperature over Time`}
                       xAxisKey={"Timestamp" as keyof DataRow}
                       yAxisKey={`MPPT${num}_FetTemp` as keyof DataRow}

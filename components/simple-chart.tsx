@@ -2,33 +2,35 @@
 
 import { useRef, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { ChartOptions, ChartData } from "chart.js";
-import { DataRow } from "@/types/data";
+import { ChartOptions } from "chart.js";
 import { Button } from "./ui/button";
 import { RefreshCw, Expand } from "lucide-react";
 import { Dialog, DialogContent, DialogTrigger } from "./ui/dialog";
 
-// Chart.js 컴포넌트를 동적으로 불러오기
+// Chart.js component loaded dynamically
 const Line = dynamic(
   () => import("react-chartjs-2").then((mod) => mod.Line),
   { ssr: false }
 );
 
-interface LineChartProps {
-  data: DataRow[];
-  title: string;
-  xAxisKey: keyof DataRow;
-  yAxisKey: keyof DataRow;
-  yAxisLabel: string;
+interface ChartDataset {
+  label: string;
+  data: number[];
+  borderColor: string;
+  backgroundColor: string;
+  yAxisID?: string;
+  borderDashed?: number[];
 }
 
-export function LineChart({
-  data,
-  title,
-  xAxisKey,
-  yAxisKey,
-  yAxisLabel,
-}: LineChartProps) {
+interface SimpleChartProps {
+  data: {
+    labels: string[];
+    datasets: ChartDataset[];
+  };
+  options?: ChartOptions<"line">;
+}
+
+export function SimpleChart({ data, options: customOptions }: SimpleChartProps) {
   const chartRef = useRef(null);
   const fullscreenChartRef = useRef(null);
   const [isClient, setIsClient] = useState(false);
@@ -36,7 +38,7 @@ export function LineChart({
 
   useEffect(() => {
     setIsClient(true);
-    // Chart.js에 필요한 요소 등록
+    // Register required Chart.js elements
     import("chart.js").then((ChartJS) => {
       ChartJS.Chart.register(
         ChartJS.CategoryScale,
@@ -48,6 +50,7 @@ export function LineChart({
         ChartJS.Legend
       );
     });
+    // 확대/축소 플러그인 등록
     import("chartjs-plugin-zoom").then((zoomPlugin) => {
       import("chart.js").then((ChartJS) => {
         ChartJS.Chart.register(zoomPlugin.default);
@@ -56,35 +59,15 @@ export function LineChart({
   }, []);
 
   if (!isClient) {
-    return <div>Loading chart...</div>;
+    return <div className="flex items-center justify-center h-full">Loading chart...</div>;
   }
 
-  const chartData: ChartData<"line"> = {
-    labels: data.map((row) => row[xAxisKey]),
-    datasets: [
-      {
-        label: title,
-        data: data.map((row) => {
-          const value = row[yAxisKey];
-          // Convert string values to numbers or return null for invalid values
-          return typeof value === 'number' ? value : 
-                 (value === null ? null : Number(value) || null);
-        }),
-        borderColor: "rgb(75, 192, 192)",
-        backgroundColor: "rgba(75, 192, 192, 0.5)",
-      },
-    ],
-  };
-
-  const options: ChartOptions<"line"> = {
+  const defaultOptions: ChartOptions<"line"> = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
         position: "top" as const,
-      },
-      title: {
-        display: true,
-        text: title,
       },
       zoom: {
         pan: {
@@ -107,13 +90,25 @@ export function LineChart({
     },
     scales: {
       y: {
-        title: {
-          display: true,
-          text: yAxisLabel,
-        },
+        beginAtZero: false,
       },
     },
   };
+
+  // 사용자 정의 옵션과 기본 옵션 병합
+  const options = customOptions ? {
+    ...defaultOptions,
+    ...customOptions,
+    plugins: {
+      ...(defaultOptions.plugins || {}),
+      ...(customOptions.plugins || {}),
+      // zoom 플러그인 옵션 보존
+      zoom: {
+        ...(defaultOptions.plugins?.zoom || {}),
+        ...(customOptions.plugins?.zoom || {})
+      }
+    }
+  } : defaultOptions;
 
   const resetZoom = () => {
     if (chartRef.current) {
@@ -131,9 +126,9 @@ export function LineChart({
 
   return (
     <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
-      <div className="relative">
-        <Line ref={chartRef} options={options} data={chartData} />
-        <div className="absolute top-0 right-0 mt-2 mr-2 flex gap-2">
+      <div className="w-full h-full relative">
+        <Line ref={chartRef} options={options} data={data} />
+        <div className="absolute top-2 right-2 flex gap-2">
           <Button 
             variant="outline" 
             size="sm" 
@@ -161,9 +156,9 @@ export function LineChart({
           <Line 
             ref={fullscreenChartRef}
             options={options} 
-            data={chartData} 
+            data={data} 
           />
-          <div className="absolute top-0 right-0 mt-2 mr-2">
+          <div className="absolute top-2 right-2">
             <Button 
               variant="outline" 
               size="sm" 
@@ -178,4 +173,4 @@ export function LineChart({
       </DialogContent>
     </Dialog>
   );
-}
+} 

@@ -21,16 +21,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDataContext } from "@/app/contexts/data-context";
 
 export default function BMSPage() {
-  const { data } = useDataContext();
+  const { currentData } = useDataContext();
   const router = useRouter();
 
   useEffect(() => {
-    if (data.length === 0) {
+    if (!currentData || currentData.length === 0) {
       router.push("/dashboard");
     }
-  }, [data, router]);
+  }, [currentData, router]);
 
-  if (data.length === 0) return null;
+  if (!currentData || currentData.length === 0) return null;
 
   return (
     <SidebarProvider>
@@ -64,7 +64,7 @@ export default function BMSPage() {
                 </CardHeader>
                 <CardContent>
                   <LineChart
-                    data={data}
+                    data={currentData}
                     title="BMS Voltage over Time"
                     xAxisKey="Timestamp"
                     yAxisKey="BMS_Voltage"
@@ -80,7 +80,7 @@ export default function BMSPage() {
                 </CardHeader>
                 <CardContent>
                   <LineChart
-                    data={data}
+                    data={currentData}
                     title="BMS Current over Time"
                     xAxisKey="Timestamp"
                     yAxisKey="BMS_Current"
@@ -96,7 +96,7 @@ export default function BMSPage() {
                 </CardHeader>
                 <CardContent>
                   <LineChart
-                    data={data}
+                    data={currentData}
                     title="State of Charge over Time"
                     xAxisKey="Timestamp"
                     yAxisKey="BMS_SoC"
@@ -112,7 +112,7 @@ export default function BMSPage() {
                 </CardHeader>
                 <CardContent>
                   <LineChart
-                    data={data}
+                    data={currentData}
                     title="Battery Temperature over Time"
                     xAxisKey="Timestamp"
                     yAxisKey="BMS_batt_temp_1"

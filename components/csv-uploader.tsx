@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { storage } from "@/lib/firebase";
 import { ref, uploadBytes } from "firebase/storage";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DataType } from "@/app/contexts/data-context";
 
 interface CSVUploaderProps {
   onUploadSuccess?: () => void;
@@ -16,7 +17,7 @@ interface CSVUploaderProps {
 }
 
 export default function CSVUploader({ onUploadSuccess, onUpdate }: CSVUploaderProps) {
-  const { setData } = useDataContext();
+  const { addDataSet, addDataType } = useDataContext();
   const [selectedFolder, setSelectedFolder] = useState<string>("can");
 
   const onDrop = useCallback(
@@ -43,11 +44,33 @@ export default function CSVUploader({ onUploadSuccess, onUpdate }: CSVUploaderPr
               },
               complete: (result) => {
                 const parsedData = result.data.filter((row) => row.Timestamp);
-                setData(parsedData);
+                
+                // 새 데이터셋 추가
+                addDataSet({
+                  type: selectedFolder,
+                  fileName: file.name,
+                  data: parsedData
+                });
+                
+                // 데이터 타입을 폴더에 따라 자동으로 추가
+                if (selectedFolder === "can") {
+                  // CAN 폴더의 파일은 기본적으로 모든 CAN 데이터 타입으로 간주
+                  addDataType(DataType.CAN_BMS);
+                  addDataType(DataType.CAN_MPPT);
+                  addDataType(DataType.CAN_VELOCITY);
+                  console.log("CAN data types added automatically");
+                } else if (selectedFolder === "ms60s") {
+                  // MS60S 폴더의 파일은 기본적으로 모든 MS60S 데이터 타입으로 간주
+                  addDataType(DataType.MS60S_IRRADIANCE);
+                  addDataType(DataType.MS60S_TILT);
+                  addDataType(DataType.MS60S_TEMPERATURE);
+                  console.log("MS60S data types added automatically");
+                }
+                
                 onUploadSuccess?.();
                 onUpdate?.();
                 toast.success("CSV file uploaded successfully", {
-                  description: "File has been uploaded and is ready for analysis.",
+                  description: `File '${file.name}' has been uploaded and is ready for analysis.`,
                 });
               },
               error: (error: Error) => {
@@ -71,7 +94,7 @@ export default function CSVUploader({ onUploadSuccess, onUpdate }: CSVUploaderPr
         }
       }
     },
-    [setData, onUploadSuccess, onUpdate, selectedFolder]
+    [addDataSet, addDataType, onUploadSuccess, onUpdate, selectedFolder]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({

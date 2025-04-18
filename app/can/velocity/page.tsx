@@ -21,16 +21,16 @@ import { useDataContext } from "@/app/contexts/data-context";
 import { DataRow } from "@/types/data";
 
 export default function VelocityPage() {
-  const { data } = useDataContext();
+  const { currentData } = useDataContext();
   const router = useRouter();
 
   useEffect(() => {
-    if (data.length === 0) {
+    if (!currentData || currentData.length === 0) {
       router.push("/dashboard");
     }
-  }, [data, router]);
+  }, [currentData, router]);
 
-  if (data.length === 0) return null;
+  if (!currentData || currentData.length === 0) return null;
 
   return (
     <SidebarProvider>
@@ -56,7 +56,7 @@ export default function VelocityPage() {
             </CardHeader>
             <CardContent>
               <LineChart
-                data={data}
+                data={currentData}
                 title="Velocity over Time"
                 xAxisKey={"Timestamp" as keyof DataRow}
                 yAxisKey={"Velocity" as keyof DataRow}

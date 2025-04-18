@@ -9,7 +9,8 @@ import { useDataContext } from "@/app/contexts/data-context";
 import { DataRow } from "@/types/data";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { Trash2, Eye } from "lucide-react";
+import { DataType } from "@/app/contexts/data-context";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,7 +43,7 @@ export default function CSVFileList({ onUpdate }: CSVFileListProps) {
   const [files, setFiles] = useState<FolderFiles>({ can: [], ms60s: [] });
   const [loading, setLoading] = useState(true);
   const [deleteFile, setDeleteFile] = useState<StorageFile | null>(null);
-  const { setData } = useDataContext();
+  const { addDataType, addDataSet, selectDataSet } = useDataContext();
 
   const fetchAllFiles = async () => {
     async function fetchFilesFromFolder(folderPath: 'can' | 'ms60s') {
@@ -123,8 +124,28 @@ export default function CSVFileList({ onUpdate }: CSVFileListProps) {
         },
         complete: (result) => {
           const parsedData = result.data.filter((row) => row.Timestamp);
-          setData(parsedData);
-          toast.success("File loaded successfully");
+          
+          addDataSet({
+            type: file.folder,
+            fileName: file.name,
+            data: parsedData
+          });
+          
+          if (file.folder === "can") {
+            addDataType(DataType.CAN_BMS);
+            addDataType(DataType.CAN_MPPT);
+            addDataType(DataType.CAN_VELOCITY);
+            console.log("CAN data types added automatically");
+          } else if (file.folder === "ms60s") {
+            addDataType(DataType.MS60S_IRRADIANCE);
+            addDataType(DataType.MS60S_TILT);
+            addDataType(DataType.MS60S_TEMPERATURE);
+            console.log("MS60S data types added automatically");
+          }
+          
+          toast.success("File loaded successfully", {
+            description: `File '${file.name}' has been loaded for analysis.`
+          });
         },
         error: (error: Error) => {
           toast.error("Failed to parse CSV file", {
@@ -138,6 +159,14 @@ export default function CSVFileList({ onUpdate }: CSVFileListProps) {
         description: error instanceof Error ? error.message : 'Unknown error occurred'
       });
     }
+  };
+
+  // 이미 로드된 파일을 선택하는 함수
+  const selectFile = (file: StorageFile) => {
+    selectDataSet(file.folder, file.name);
+    toast.success("File selected", {
+      description: `Switched to dataset: ${file.name}`
+    });
   };
 
   if (loading) {
@@ -172,18 +201,33 @@ export default function CSVFileList({ onUpdate }: CSVFileListProps) {
                   {(file.size / 1024).toFixed(1)} KB
                 </p>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDeleteFile(file);
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-                <span className="sr-only">Delete file</span>
-              </Button>
+              <div className="flex items-center space-x-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-primary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    selectFile(file);
+                  }}
+                  title="Select this file"
+                >
+                  <Eye className="h-4 w-4" />
+                  <span className="sr-only">Select file</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeleteFile(file);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span className="sr-only">Delete file</span>
+                </Button>
+              </div>
             </div>
           ))}
         </div>
