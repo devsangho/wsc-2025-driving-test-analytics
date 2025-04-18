@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from "react";
 import { DataRow } from "@/types/data";
 import Papa from "papaparse";
 
@@ -107,18 +107,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Helper functions for data type management
   const hasDataType = (type: DataType) => availableDataTypes.includes(type);
   
-  const addDataType = (type: DataType) => {
-    if (!hasDataType(type)) {
+  const addDataType = useCallback((type: DataType) => {
+    if (!availableDataTypes.includes(type)) {
       setAvailableDataTypes(prev => [...prev, type]);
     }
-  };
+  }, [availableDataTypes]);
   
   const removeDataType = (type: DataType) => {
     setAvailableDataTypes(prev => prev.filter(t => t !== type));
   };
 
   // Detect data type based on columns
-  const detectDataType = (headers: string[]) => {
+  const detectDataType = useCallback((headers: string[]) => {
     console.log("Detecting data types from headers:", headers);
     
     // 대소문자 무시를 위해 모든 헤더를 소문자로 변환한 배열도 생성
@@ -212,7 +212,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       addDataType(DataType.CAN_VELOCITY);
       console.log("Added default CAN data types as fallback");
     }
-  };
+  }, [addDataType, availableDataTypes]);
 
   // Automatically load map.csv file when the application starts
   useEffect(() => {
@@ -256,7 +256,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     // Load map data on component mount
     loadMapData();
-  }, []);
+  }, [addDataType]);
 
   // Update data types when new data is loaded (not just currentData changes)
   useEffect(() => {
@@ -264,7 +264,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const headers = Object.keys(currentData[0] || {});
       detectDataType(headers);
     }
-  }, [currentData]);
+  }, [currentData, detectDataType]);
 
   return (
     <DataContext.Provider 

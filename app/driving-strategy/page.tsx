@@ -19,7 +19,7 @@ import { useDataContext } from "@/app/contexts/data-context";
 import { Badge } from "@/components/ui/badge";
 import { Map } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ChartOptions } from "chart.js";
 
 interface ElevationChartData {
@@ -119,76 +119,8 @@ export default function DrivingStrategyPage() {
   const [cityMarkers, setCityMarkers] = useState<CityMarker[]>([]);
   const [maxDistance, setMaxDistance] = useState<number>(3020); // 기본값은 Adelaide까지의 거리
 
-  // Fetch and process map data for elevation profile
-  useEffect(() => {
-    const fetchMapData = async () => {
-      try {
-        const response = await fetch("/map.csv");
-        const csvData = await response.text();
-
-        // Parse CSV data
-        const rows = csvData.split("\n").slice(1); // Skip header row
-
-        // Extract labels, distances, and elevations
-        const labels: string[] = [];
-        const distances: number[] = [];
-        const elevations: number[] = [];
-        let maxDist = 0;
-
-        rows.forEach((row) => {
-          const columns = row.split(",");
-          if (columns.length >= 7) {
-            const distance = parseFloat(columns[5]);
-            const elevation = parseFloat(columns[2]);
-
-            if (distance && !isNaN(elevation)) {
-              // Add empty labels for most points to avoid cluttering
-              labels.push("");
-              distances.push(distance);
-              elevations.push(elevation);
-
-              if (distance > maxDist) {
-                maxDist = distance;
-              }
-            }
-          }
-        });
-
-        // Update max distance
-        setMaxDistance(Math.ceil(maxDist / 100) * 100); // Round up to nearest hundred
-
-        // Set defined city markers
-        setCityMarkers(MAJOR_CITIES);
-
-        // Create chart data
-        setElevationData({
-          labels: labels,
-          datasets: [
-            {
-              label: "Elevation (m)",
-              data: elevations,
-              borderColor: "hsl(var(--primary))",
-              backgroundColor: "hsla(var(--primary), 0.2)",
-            },
-          ],
-        });
-      } catch (error) {
-        console.error("Error loading map data:", error);
-      }
-    };
-
-    fetchMapData();
-  }, []);
-
-  // 계산 데이터 생성 함수 추가
-  useEffect(() => {
-    if (elevationData.datasets[0].data.length > 0) {
-      generateSimulatedData();
-    }
-  }, [elevationData]);
-
-  // 시뮬레이션 데이터 생성 함수
-  const generateSimulatedData = () => {
+  // 시뮬레이션 데이터 생성 함수 메모이제이션
+  const generateSimulatedData = useCallback(() => {
     const elevations = elevationData.datasets[0].data;
     const totalPoints = elevations.length;
     const distances: number[] = [];
@@ -289,7 +221,75 @@ export default function DrivingStrategyPage() {
       etaMotor,
       distances
     });
-  };
+  }, [elevationData, maxDistance]);
+
+  // Fetch and process map data for elevation profile
+  useEffect(() => {
+    const fetchMapData = async () => {
+      try {
+        const response = await fetch("/map.csv");
+        const csvData = await response.text();
+
+        // Parse CSV data
+        const rows = csvData.split("\n").slice(1); // Skip header row
+
+        // Extract labels, distances, and elevations
+        const labels: string[] = [];
+        const distances: number[] = [];
+        const elevations: number[] = [];
+        let maxDist = 0;
+
+        rows.forEach((row) => {
+          const columns = row.split(",");
+          if (columns.length >= 7) {
+            const distance = parseFloat(columns[5]);
+            const elevation = parseFloat(columns[2]);
+
+            if (distance && !isNaN(elevation)) {
+              // Add empty labels for most points to avoid cluttering
+              labels.push("");
+              distances.push(distance);
+              elevations.push(elevation);
+
+              if (distance > maxDist) {
+                maxDist = distance;
+              }
+            }
+          }
+        });
+
+        // Update max distance
+        setMaxDistance(Math.ceil(maxDist / 100) * 100); // Round up to nearest hundred
+
+        // Set defined city markers
+        setCityMarkers(MAJOR_CITIES);
+
+        // Create chart data
+        setElevationData({
+          labels: labels,
+          datasets: [
+            {
+              label: "Elevation (m)",
+              data: elevations,
+              borderColor: "hsl(var(--primary))",
+              backgroundColor: "hsla(var(--primary), 0.2)",
+            },
+          ],
+        });
+      } catch (error) {
+        console.error("Error loading map data:", error);
+      }
+    };
+
+    fetchMapData();
+  }, []);
+
+  // 계산 데이터 생성 함수 추가
+  useEffect(() => {
+    if (elevationData.datasets[0].data.length > 0) {
+      generateSimulatedData();
+    }
+  }, [elevationData, maxDistance, generateSimulatedData]);
 
   // 차트 옵션 생성
   const powerBalanceChartOptions: ChartOptions<"line"> = {

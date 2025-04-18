@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import Papa from "papaparse";
-import { useDataContext } from "@/app/contexts/data-context";
+import { useDataContext, DataType } from "@/app/contexts/data-context";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Upload, Map } from "lucide-react";
@@ -14,88 +14,121 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { DataRow } from "@/types/data";
 
 interface MapDataRow {
-  Latitude: number;
-  Longitude: number;
-  "Elevation (m)": number;
-  City: string;
-  Weather_loc: string;
-  Distance_km: number;
-  Difference_km: number;
+  Latitude?: number;
+  Longitude?: number;
+  latitude?: number;
+  longitude?: number;
+  lat?: number;
+  lng?: number;
+  [key: string]: unknown;
 }
 
 export default function MapFileLoader() {
-  const { setIsMapDataLoaded } = useDataContext();
+  const { setIsMapDataLoaded, addDataSet, addDataType } = useDataContext();
   const [loading, setLoading] = useState(false);
 
   const onDrop = useCallback(
-    async (acceptedFiles: File[]) => {
+    (acceptedFiles: File[]) => {
       const file = acceptedFiles[0];
-      if (file) {
+      if (!file) return;
+      
+      setLoading(true);
+      
+      const reader = new FileReader();
+      reader.onload = async (event) => {
         try {
-          setLoading(true);
+          const csvContent = event.target?.result as string;
           
-          // Parse CSV for verification
-          const reader = new FileReader();
-          reader.onload = () => {
-            const csvData = reader.result as string;
-            Papa.parse<MapDataRow>(csvData, {
-              header: true,
-              skipEmptyLines: "greedy",
-              dynamicTyping: true,
-              complete: (result) => {
-                // Verify if it's a valid map file with required columns
-                const headers = Object.keys(result.data[0] || {});
-                const requiredColumns = ["Latitude", "Longitude", "Elevation (m)", "Distance_km"];
+          if (!csvContent) {
+            throw new Error("파일을 읽는 데 실패했습니다.");
+          }
+          
+          // CSV 파싱
+          Papa.parse<MapDataRow>(csvContent, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (parseResult) => {
+              // 결과 확인
+              if (parseResult.data && parseResult.data.length > 0) {
+                // 최소한의 필수 필드 확인
+                const firstRow = parseResult.data[0];
+                let hasGpsData = false;
                 
-                const isValidMapFile = requiredColumns.every(col => headers.includes(col));
-                
-                if (isValidMapFile) {
-                  setIsMapDataLoaded(true);
-                  toast.success("Map data loaded successfully", {
-                    description: "Route data is now available for driving strategy analysis.",
-                  });
-                } else {
-                  toast.error("Invalid map file format", {
-                    description: "The file doesn't contain the required columns for route analysis.",
-                  });
+                if (
+                  (firstRow.Latitude !== undefined && firstRow.Longitude !== undefined) ||
+                  (firstRow.latitude !== undefined && firstRow.longitude !== undefined) ||
+                  (firstRow.lat !== undefined && firstRow.lng !== undefined)
+                ) {
+                  hasGpsData = true;
                 }
-                setLoading(false);
-              },
-              error: (error: Error) => {
-                toast.error("Failed to parse map file", {
-                  description: error.message,
+                
+                if (!hasGpsData) {
+                  toast.error("Map data error", {
+                    description: "The map data doesn't contain required GPS coordinates."
+                  });
+                  setLoading(false);
+                  return;
+                }
+                
+                // 데이터 저장
+                addDataSet({
+                  type: DataType.MAP,
+                  fileName: file.name,
+                  data: parseResult.data as unknown as DataRow[]
                 });
-                setLoading(false);
-              },
-            });
-          };
-          reader.onerror = () => {
-            toast.error("Failed to read map file", {
-              description: "Please check if the file is valid and try again.",
-            });
-            setLoading(false);
-          };
-          reader.readAsText(file);
-        } catch (error) {
-          console.error("Load error:", error);
-          toast.error("Failed to load map file", {
-            description: "There was an error loading your file.",
+                
+                // 모든 GPS 포인트가 정상적으로 읽힌 경우에만 맵 데이터 로드 설정
+                setIsMapDataLoaded(true);
+                addDataType(DataType.MAP);
+                
+                toast.success("Map data loaded", {
+                  description: `Map data with ${parseResult.data.length} points has been loaded successfully.`
+                });
+              } else {
+                toast.error("Invalid map file", {
+                  description: "The file contains no data or has an incorrect format."
+                });
+              }
+              
+              setLoading(false);
+            },
+            error: (error: Error) => {
+              toast.error("CSV parsing error", {
+                description: error.message
+              });
+              setLoading(false);
+            }
+          });
+        } catch (err) {
+          toast.error("File processing error", {
+            description: err instanceof Error ? err.message : 'Unknown error'
           });
           setLoading(false);
         }
-      }
+      };
+      
+      reader.onerror = () => {
+        toast.error("File reading error", {
+          description: "An error occurred while reading the file."
+        });
+        setLoading(false);
+      };
+      
+      reader.readAsText(file);
     },
-    [setIsMapDataLoaded]
+    [setIsMapDataLoaded, addDataSet, addDataType]
   );
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps } = useDropzone({
     onDrop,
     accept: {
-      "text/csv": [".csv"],
+      'text/csv': ['.csv'],
     },
     maxFiles: 1,
+    multiple: false,
   });
 
   // Load the default map.csv from public directory
@@ -114,7 +147,7 @@ export default function MapFileLoader() {
         header: true,
         skipEmptyLines: "greedy",
         dynamicTyping: true,
-        complete: (result) => {
+        complete: () => {
           setIsMapDataLoaded(true);
           toast.success("Default map data loaded", {
             description: "Using the default route data for driving strategy analysis.",
