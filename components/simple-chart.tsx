@@ -3,9 +3,30 @@
 import { useRef, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { ChartOptions } from "chart.js";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
 import { Button } from "./ui/button";
 import { RefreshCw, Expand } from "lucide-react";
 import { Dialog, DialogContent, DialogTrigger } from "./ui/dialog";
+
+// Register ChartJS components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 // Chart.js component loaded dynamically
 const Line = dynamic(
