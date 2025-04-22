@@ -29,8 +29,6 @@ interface ElevationChartData {
     data: number[];
     borderColor: string;
     backgroundColor: string;
-    yAxisID?: string;
-    borderDashed?: number[];
   }[];
 }
 
@@ -39,7 +37,6 @@ interface CityMarker {
   distance: number;
 }
 
-// 주요 도시와 그에 해당하는 거리 (km)
 const MAJOR_CITIES: CityMarker[] = [
   { city: "Darwin", distance: 0 },
   { city: "Batchelor", distance: 98 },
@@ -53,7 +50,6 @@ const MAJOR_CITIES: CityMarker[] = [
   { city: "Adelaide", distance: 3020 },
 ];
 
-// 새로운 인터페이스 추가
 interface PowerBalanceData {
   pmppt: number[];
   pmotor: number[];
@@ -75,13 +71,14 @@ interface EfficiencyData {
   distances: number[];
 }
 
-// 모터 및 컨트롤러 상수
+// 상수
 const MOTOR_NOMINAL_POWER = 2.0; // kW
 const MOTOR_MAX_POWER = 5.0; // kW
-const MOTOR_EFFICIENCY = 0.95; // 95%
+const CAR_WEIGHT = 320; // kg
 
 export default function DrivingStrategyPage() {
   const { isMapDataLoaded } = useDataContext();
+
   const [elevationData, setElevationData] = useState<ElevationChartData>({
     labels: [],
     datasets: [
@@ -93,134 +90,140 @@ export default function DrivingStrategyPage() {
       },
     ],
   });
-  
-  // 새로운 상태 추가
+
   const [powerBalanceData, setPowerBalanceData] = useState<PowerBalanceData>({
     pmppt: [],
     pmotor: [],
     pbattery: [],
-    distances: []
+    distances: [],
   });
-  
-  const [resistanceForceData, setResistanceForceData] = useState<ResistanceForceData>({
-    fWind: [],
-    fRolling: [],
-    fGrade: [],
-    distances: []
-  });
-  
+  const [resistanceForceData, setResistanceForceData] =
+    useState<ResistanceForceData>({
+      fWind: [],
+      fRolling: [],
+      fGrade: [],
+      distances: [],
+    });
   const [efficiencyData, setEfficiencyData] = useState<EfficiencyData>({
     etaMppt: [],
     etaBattery: [],
     etaMotor: [],
-    distances: []
+    distances: [],
   });
-  
   const [cityMarkers, setCityMarkers] = useState<CityMarker[]>([]);
-  const [maxDistance, setMaxDistance] = useState<number>(3020); // 기본값은 Adelaide까지의 거리
+  const [maxDistance, setMaxDistance] = useState<number>(3020);
 
-  // 시뮬레이션 데이터 생성 함수 메모이제이션
   const generateSimulatedData = useCallback(() => {
     const elevations = elevationData.datasets[0].data;
     const totalPoints = elevations.length;
-    const distances: number[] = [];
-    
-    // 거리 배열 생성
-    for (let i = 0; i < totalPoints; i++) {
-      distances.push((i / totalPoints) * maxDistance);
-    }
-    
-    // Power Balance 데이터 생성
+    const distances = elevations.map((_, i) => (i / totalPoints) * maxDistance);
+
+    // 시뮬레이션 상수
+    let time = 0; // 누적 시간 (h)
+    const rhoAir = 1.2; // kg/m³
+    const Cd = 0.3;
+    const frontalArea = 1.5; // m²
+    const rollingCoeff = 0.015;
+    const g = 9.8; // m/s²
+    const panelArea = 6; // m²
+    const panelBaseEff = 0.2; // 20%
+    const MOTOR_MAX_POWER_W = MOTOR_MAX_POWER * 1000; // W
+    const MOTOR_NOMINAL_POWER_W = MOTOR_NOMINAL_POWER * 1000; // W
+
     const pmppt: number[] = [];
     const pmotor: number[] = [];
     const pbattery: number[] = [];
-    
-    // Resistance Force 데이터 생성
     const fWind: number[] = [];
     const fRolling: number[] = [];
     const fGrade: number[] = [];
-    
-    // Efficiency 데이터 생성
     const etaMppt: number[] = [];
     const etaBattery: number[] = [];
     const etaMotor: number[] = [];
-    
-    // 각 지점별로 데이터 계산
+
     for (let i = 0; i < totalPoints; i++) {
-      const distance = distances[i];
-      const elevation = elevations[i];
-      const elevationGradient = i > 0 ? (elevations[i] - elevations[i-1]) / (distance - distances[i-1]) : 0;
-      
-      // 속도 모델링 (거리에 따라 변화, 60~100km/h 사이)
-      const speed = 60 + 40 * Math.sin(distance / maxDistance * Math.PI);
-      
-      // 태양 에너지 모델링 (시간에 따라 변화, 0~1000W/m² 사이)
-      const timeOfDay = (distance / maxDistance) * 24; // 0~24시간
-      const solarIrradiance = timeOfDay > 6 && timeOfDay < 18 
-        ? 1000 * Math.sin(Math.PI * (timeOfDay - 6) / 12) 
-        : 0;
-      
-      // Power Balance 계산
-      const mpptPower = solarIrradiance * 0.2 * 4; // 4m² 면적의 20% 효율 태양전지 가정
-      pmppt.push(mpptPower / 1000); // kW 단위로 변환
-      
-      // 모터 파워 계산 (경사도와 속도에 기반)
-      const motorPower = Math.min(MOTOR_MAX_POWER, 5 + 0.05 * speed * speed + 0.2 * elevationGradient * speed);
-      pmotor.push(motorPower);
-      
-      // 배터리 파워 계산 (MPPT - 모터 파워)
-      const batteryPower = (mpptPower / 1000 - motorPower) * MOTOR_EFFICIENCY;
-      pbattery.push(batteryPower);
-      
-      // Resistance Force 계산
-      // 공기저항 (속도의 제곱에 비례)
-      const windResistance = 0.5 * 1.2 * 1.5 * 0.3 * speed * speed;
-      fWind.push(windResistance);
-      
-      // 구름저항 (무게와 구름저항계수에 비례)
-      const rollingResistance = 350 * 9.8 * 0.015;
-      fRolling.push(rollingResistance);
-      
-      // 경사저항 (경사도와 무게에 비례)
-      const gradeResistance = 350 * 9.8 * Math.sin(Math.atan(elevationGradient / 100));
-      fGrade.push(gradeResistance);
-      
-      // 효율 계산
-      // MPPT 효율 (90~98% 사이, 고도가 높을수록 효율 약간 상승)
-      etaMppt.push(90 + 8 * Math.random() + 0.003 * elevation);
-      
-      // 배터리 효율 (80~95% 사이, SOC에 따라 변화)
-      const batterySOC = 50 + 30 * Math.sin(distance / maxDistance * 2 * Math.PI);
-      const batteryEfficiency = 80 + 15 * (batterySOC / 100);
-      etaBattery.push(batteryEfficiency);
-      
-      // 모터 효율 (70~95% 사이, 부하에 따라 변화)
-      const motorLoad = motorPower / MOTOR_NOMINAL_POWER; // 정격 출력에 기반
-      const motorEfficiency = 70 + 25 * (motorLoad > 0.2 && motorLoad < 0.8 ? 1 : 0.7);
-      etaMotor.push(motorEfficiency);
+      const dist = distances[i];
+      const elev = elevations[i];
+
+      // Δ거리(m) 및 경사(slope)
+      let deltaDist = 0;
+      let slope = 0;
+      if (i > 0) {
+        deltaDist = (distances[i] - distances[i - 1]) * 1000;
+        slope =
+          deltaDist > 0 ? (elevations[i] - elevations[i - 1]) / deltaDist : 0;
+      }
+
+      // 속도 모델링 (km/h → m/s)
+      const speedKmh = 60 + 40 * Math.sin((dist / maxDistance) * Math.PI);
+      const speed = speedKmh / 3.6;
+
+      // 시간 누적 (h)
+      time += deltaDist > 0 ? deltaDist / speed / 3600 : 0;
+
+      // 태양광 조사량 (W/m²)
+      const tod = time % 24;
+      const irradiance =
+        tod > 6 && tod < 18 ? 1000 * Math.sin((Math.PI * (tod - 6)) / 12) : 0;
+
+      // MPPT 발전량 (W → kW)
+      const mpptEff = Math.min(
+        0.98,
+        panelBaseEff + 0.08 * Math.random() + 0.0003 * elev
+      );
+      const mpptPowerW = irradiance * panelArea * mpptEff;
+      pmppt.push(mpptPowerW / 1000);
+
+      // 저항력 계산 (N)
+      const F_air = 0.5 * rhoAir * Cd * frontalArea * speed * speed;
+      const F_roll = CAR_WEIGHT * g * rollingCoeff;
+      const F_grade = CAR_WEIGHT * g * slope;
+      const F_total = F_air + F_roll + F_grade;
+
+      // 기계적 출력 (W) 및 모터 입력 전력 클램프
+      const mechPowerW = F_total * speed;
+      const motorInputW = Math.min(MOTOR_MAX_POWER_W, mechPowerW);
+
+      // 모터 부하율 (정격 출력 대비)
+      const loadRaw = motorInputW / MOTOR_NOMINAL_POWER_W;
+      const load = Math.min(1, Math.max(0, loadRaw));
+
+      // 모터 효율 (선형 보간)
+      let eM: number;
+      if (load < 0.2) {
+        eM = 0.6 + (load / 0.2) * (0.85 - 0.6);
+      } else if (load <= 0.8) {
+        eM = 0.85 + ((load - 0.2) / 0.6) * (0.95 - 0.85);
+      } else {
+        eM = 0.95 - ((load - 0.8) / 0.2) * (0.95 - 0.7);
+      }
+      etaMotor.push(eM * 100);
+
+      // 모터 전기 입력 전력 (W → kW)
+      const motorElecW = motorInputW / eM;
+      pmotor.push(motorElecW / 1000);
+
+      // 배터리 효율 (SoC 기반)
+      const soc = 50 + 30 * Math.sin((dist / maxDistance) * 2 * Math.PI);
+      const eB = 0.8 + 0.15 * (soc / 100);
+      etaBattery.push(eB * 100);
+
+      // 배터리 전력 수지 (kW)
+      const netBatteryKW = motorElecW / 1000 - mpptPowerW / 1000;
+      const battKW = netBatteryKW >= 0 ? netBatteryKW / eB : netBatteryKW * eB;
+      pbattery.push(battKW);
+
+      // 저항력 기록
+      fWind.push(F_air);
+      fRolling.push(F_roll);
+      fGrade.push(F_grade);
+
+      // MPPT 효율 기록 (%)
+      etaMppt.push(mpptEff * 100);
     }
-    
-    // 상태 업데이트
-    setPowerBalanceData({
-      pmppt,
-      pmotor,
-      pbattery,
-      distances
-    });
-    
-    setResistanceForceData({
-      fWind,
-      fRolling,
-      fGrade,
-      distances
-    });
-    
-    setEfficiencyData({
-      etaMppt,
-      etaBattery,
-      etaMotor,
-      distances
-    });
+
+    setPowerBalanceData({ pmppt, pmotor, pbattery, distances });
+    setResistanceForceData({ fWind, fRolling, fGrade, distances });
+    setEfficiencyData({ etaMppt, etaBattery, etaMotor, distances });
   }, [elevationData, maxDistance]);
 
   // Fetch and process map data for elevation profile
@@ -438,7 +441,10 @@ export default function DrivingStrategyPage() {
   // Power Balance 차트 데이터
   const getPowerBalanceChartData = () => {
     // 적절한 간격으로 데이터 샘플링 (모든 포인트를 그리면 너무 많음)
-    const step = Math.max(1, Math.floor(powerBalanceData.distances.length / 100));
+    const step = Math.max(
+      1,
+      Math.floor(powerBalanceData.distances.length / 100)
+    );
     const sampledDistances = [];
     const sampledPmppt = [];
     const sampledPmotor = [];
@@ -452,29 +458,29 @@ export default function DrivingStrategyPage() {
     }
 
     return {
-      labels: sampledDistances.map(d => Math.round(d).toString()),
+      labels: sampledDistances.map((d) => Math.round(d).toString()),
       datasets: [
         {
-          label: "Pmppt (kW)",
+          label: "Pmppt (kW) = irradiance * panelArea * mpptEff / 1000",
           data: sampledPmppt,
           borderColor: "hsl(215, 100%, 60%)",
           backgroundColor: "hsla(215, 100%, 60%, 0.1)",
           yAxisID: "y",
         },
         {
-          label: "Pmotor (kW)",
+          label: "Pmotor (kW) = motorInputW / eM / 1000",
           data: sampledPmotor,
           borderColor: "hsl(10, 90%, 60%)",
           backgroundColor: "hsla(10, 90%, 60%, 0.1)",
           yAxisID: "y",
         },
         {
-          label: "Pbattery (kW)",
+          label: "Pbattery (kW) = netBatteryKW >= 0 ? netBatteryKW / eB : netBatteryKW * eB",
           data: sampledPbattery,
           borderColor: "hsl(150, 90%, 40%)",
           backgroundColor: "hsla(150, 90%, 40%, 0.1)",
           yAxisID: "y",
-        }
+        },
       ],
     };
   };
@@ -482,7 +488,10 @@ export default function DrivingStrategyPage() {
   // Resistance Force 차트 데이터
   const getResistanceForceChartData = () => {
     // 적절한 간격으로 데이터 샘플링
-    const step = Math.max(1, Math.floor(resistanceForceData.distances.length / 100));
+    const step = Math.max(
+      1,
+      Math.floor(resistanceForceData.distances.length / 100)
+    );
     const sampledDistances = [];
     const sampledFWind = [];
     const sampledFRolling = [];
@@ -496,29 +505,29 @@ export default function DrivingStrategyPage() {
     }
 
     return {
-      labels: sampledDistances.map(d => Math.round(d).toString()),
+      labels: sampledDistances.map((d) => Math.round(d).toString()),
       datasets: [
         {
-          label: "FWind (N)",
+          label: "FWind (N) = 0.5 * rhoAir * Cd * frontalArea * speed * speed",
           data: sampledFWind,
           borderColor: "hsl(215, 100%, 60%)",
           backgroundColor: "hsla(215, 100%, 60%, 0.1)",
           yAxisID: "y",
         },
         {
-          label: "FRolling (N)",
+          label: "FRolling (N) = CAR_WEIGHT * g * rollingCoeff",
           data: sampledFRolling,
           borderColor: "hsl(10, 90%, 60%)",
           backgroundColor: "hsla(10, 90%, 60%, 0.1)",
           yAxisID: "y",
         },
         {
-          label: "FGrade (N)",
+          label: "FGrade (N) = CAR_WEIGHT * g * slope",
           data: sampledFGrade,
           borderColor: "hsl(150, 90%, 40%)",
           backgroundColor: "hsla(150, 90%, 40%, 0.1)",
           yAxisID: "y",
-        }
+        },
       ],
     };
   };
@@ -540,29 +549,29 @@ export default function DrivingStrategyPage() {
     }
 
     return {
-      labels: sampledDistances.map(d => Math.round(d).toString()),
+      labels: sampledDistances.map((d) => Math.round(d).toString()),
       datasets: [
         {
-          label: "ηmppt (%)",
+          label: "ηmppt (%) = panelBaseEff + 0.08 * rand + 0.0003 * elev",
           data: sampledEtaMppt,
           borderColor: "hsl(215, 100%, 60%)",
           backgroundColor: "hsla(215, 100%, 60%, 0.1)",
           yAxisID: "y",
         },
         {
-          label: "ηbattery (%)",
+          label: "ηbattery (%) = 0.8 + 0.15 * (soc / 100)",
           data: sampledEtaBattery,
           borderColor: "hsl(10, 90%, 60%)",
           backgroundColor: "hsla(10, 90%, 60%, 0.1)",
           yAxisID: "y",
         },
         {
-          label: "ηmotor (%)",
+          label: "ηmotor (%) = load < 0.2 ? 0.6 + (load/0.2)*(0.85-0.6) : load <= 0.8 ? 0.85 + ((load-0.2)/0.6)*(0.95-0.85) : 0.95 - ((load-0.8)/0.2)*(0.95-0.7)",
           data: sampledEtaMotor,
           borderColor: "hsl(150, 90%, 40%)",
           backgroundColor: "hsla(150, 90%, 40%, 0.1)",
           yAxisID: "y",
-        }
+        },
       ],
     };
   };
@@ -637,7 +646,7 @@ export default function DrivingStrategyPage() {
             if (!values || !Array.isArray(values) || values.length <= 1) {
               return "";
             }
-            
+
             // 그리드 포인트의 상대적인 위치
             const relativePct = index / (values.length - 1);
             const currentDist = relativePct * maxDistance;
@@ -660,9 +669,10 @@ export default function DrivingStrategyPage() {
                 });
 
                 // 현재 틱이 도시와 가장 가까운 틱인지 확인
-                const isClosestTick = otherTicksForCity.length > 0 
-                  ? Math.min(...otherTicksForCity) > diff
-                  : true;
+                const isClosestTick =
+                  otherTicksForCity.length > 0
+                    ? Math.min(...otherTicksForCity) > diff
+                    : true;
 
                 if (isClosestTick) {
                   return city.city;
@@ -686,11 +696,12 @@ export default function DrivingStrategyPage() {
 
             const index = context[0].dataIndex;
             const totalPoints = elevationData.labels.length;
-            
+
             // Ensure we don't divide by zero
-            const distance = totalPoints > 0 
-              ? Math.round((index / totalPoints) * maxDistance)
-              : 0;
+            const distance =
+              totalPoints > 0
+                ? Math.round((index / totalPoints) * maxDistance)
+                : 0;
 
             // Find nearest city
             let nearestCity = "";
