@@ -61,6 +61,7 @@ interface ResistanceForceData {
   fWind: number[];
   fRolling: number[];
   fGrade: number[];
+  fAccel: number[];
   distances: number[];
 }
 
@@ -102,6 +103,7 @@ export default function DrivingStrategyPage() {
       fWind: [],
       fRolling: [],
       fGrade: [],
+      fAccel: [],
       distances: [],
     });
   const [efficiencyData, setEfficiencyData] = useState<EfficiencyData>({
@@ -136,6 +138,7 @@ export default function DrivingStrategyPage() {
     const fWind: number[] = [];
     const fRolling: number[] = [];
     const fGrade: number[] = [];
+    const fAccel: number[] = [];
     const etaMppt: number[] = [];
     const etaBattery: number[] = [];
     const etaMotor: number[] = [];
@@ -157,6 +160,15 @@ export default function DrivingStrategyPage() {
       const speedKmh = 60 + 40 * Math.sin((dist / maxDistance) * Math.PI);
       const speed = speedKmh / 3.6;
 
+      // 가속도 계산 (m/s²)
+      let accel = 0;
+      if (i > 0) {
+        const prevSpeedKmh = 60 + 40 * Math.sin((distances[i-1] / maxDistance) * Math.PI);
+        const prevSpeed = prevSpeedKmh / 3.6;
+        const timeDelta = deltaDist > 0 ? deltaDist / speed / 3600 : 0;
+        accel = timeDelta > 0 ? (speed - prevSpeed) / timeDelta : 0;
+      }
+
       // 시간 누적 (h)
       time += deltaDist > 0 ? deltaDist / speed / 3600 : 0;
 
@@ -177,7 +189,8 @@ export default function DrivingStrategyPage() {
       const F_air = 0.5 * rhoAir * Cd * frontalArea * speed * speed;
       const F_roll = CAR_WEIGHT * g * rollingCoeff;
       const F_grade = CAR_WEIGHT * g * slope;
-      const F_total = F_air + F_roll + F_grade;
+      const F_accel = CAR_WEIGHT * accel;
+      const F_total = F_air + F_roll + F_grade + F_accel;
 
       // 기계적 출력 (W) 및 모터 입력 전력 클램프
       const mechPowerW = F_total * speed;
@@ -216,13 +229,14 @@ export default function DrivingStrategyPage() {
       fWind.push(F_air);
       fRolling.push(F_roll);
       fGrade.push(F_grade);
+      fAccel.push(F_accel);
 
       // MPPT 효율 기록 (%)
       etaMppt.push(mpptEff * 100);
     }
 
     setPowerBalanceData({ pmppt, pmotor, pbattery, distances });
-    setResistanceForceData({ fWind, fRolling, fGrade, distances });
+    setResistanceForceData({ fWind, fRolling, fGrade, fAccel, distances });
     setEfficiencyData({ etaMppt, etaBattery, etaMotor, distances });
   }, [elevationData, maxDistance]);
 
@@ -496,12 +510,14 @@ export default function DrivingStrategyPage() {
     const sampledFWind = [];
     const sampledFRolling = [];
     const sampledFGrade = [];
+    const sampledFAccel = [];
 
     for (let i = 0; i < resistanceForceData.distances.length; i += step) {
       sampledDistances.push(resistanceForceData.distances[i]);
       sampledFWind.push(resistanceForceData.fWind[i]);
       sampledFRolling.push(resistanceForceData.fRolling[i]);
       sampledFGrade.push(resistanceForceData.fGrade[i]);
+      sampledFAccel.push(resistanceForceData.fAccel[i]);
     }
 
     return {
@@ -526,6 +542,13 @@ export default function DrivingStrategyPage() {
           data: sampledFGrade,
           borderColor: "hsl(150, 90%, 40%)",
           backgroundColor: "hsla(150, 90%, 40%, 0.1)",
+          yAxisID: "y",
+        },
+        {
+          label: "FAccel (N) = CAR_WEIGHT * accel",
+          data: sampledFAccel,
+          borderColor: "hsl(300, 90%, 40%)",
+          backgroundColor: "hsla(300, 90%, 40%, 0.1)",
           yAxisID: "y",
         },
       ],
@@ -896,6 +919,8 @@ export default function DrivingStrategyPage() {
                       <div>FWind</div>
                       <div>FRolling</div>
                       <div>FGrade</div>
+                      <div>FAccel</div>
+                      <div>[N]</div>
                       <div>[N]</div>
                       <div>[N]</div>
                       <div>[N]</div>
