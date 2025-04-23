@@ -1,0 +1,40 @@
+{
+  "control_stops": [
+    {
+      "name": "Transport weighbridge, Katherine",
+      "distance": 323.0
+    },
+    {
+      "name": "Dunmarra wayside inn, Dunmarra",
+      "distance": 635.0
+    },
+    {
+      "name": "Tennant creek weigh bridge, Tennant creek",
+      "distance": 991.0
+    },
+    {
+      "name": "Barrow creek hotel, Barrow creek",
+      "distance": 1215.0
+    },
+    {
+      "name": "Traeger park, Alice springs",
+      "distance": 1500.0
+    },
+    {
+      "name": "Erldunda roadhouse, Erldunda",
+      "distance": 1699.0
+    },
+    {
+      "name": "Coober pedy oval, Coober pedy",
+      "distance": 2186.0
+    },
+    {
+      "name": "Glendambo outback resort, Glendambo",
+      "distance": 2440.0
+    },
+    {
+      "name": "Central oval, Port Augusta",
+      "distance": 2726.0
+    }
+  ]
+}

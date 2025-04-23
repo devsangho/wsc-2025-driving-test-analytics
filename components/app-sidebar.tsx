@@ -2,7 +2,7 @@
 
 import { NavMain } from "@/components/nav-main";
 import { Sidebar } from "@/components/ui/sidebar";
-import { Battery, Gauge, Map, Thermometer } from "lucide-react";
+import { Battery, Gauge, Map, Thermometer, PlayCircle } from "lucide-react";
 import { useDataContext } from "@/app/contexts/data-context";
 import { DataType } from "@/app/contexts/data-context";
 
@@ -25,6 +25,12 @@ export function AppSidebar() {
       title: "Driving Strategy",
       url: "/driving-strategy",
       icon: Map,
+      disabled: false,
+    },
+    {
+      title: "Simulation",
+      url: "/simulation",
+      icon: PlayCircle,
       disabled: false,
     },
     {
