@@ -33,12 +33,15 @@ export interface SolarEnergyData {
 // WSC 경로의 주요 지점들 정보 (위도, 경도)
 export const WSC_LOCATIONS: LocationInfo[] = [
   { name: 'Adelaide', latitude: -34.9285, longitude: 138.6007 },
-  { name: 'Coober Pedy', latitude: -29.0135, longitude: 134.7544 },
-  { name: 'Alice Springs', latitude: -23.6980, longitude: 133.8807 },
-  { name: 'Tennant Creek', latitude: -19.6472, longitude: 134.1933 },
-  { name: 'Daly Waters', latitude: -16.2551, longitude: 133.3892 },
+  { name: 'Coober pedy', latitude: -29.0135, longitude: 134.7544 },
+  { name: 'Alice springs', latitude: -23.6980, longitude: 133.8807 },
+  { name: 'Tennant creek', latitude: -19.6472, longitude: 134.1933 },
+  { name: 'Daly waters', latitude: -16.2551, longitude: 133.3892 },
   { name: 'Katherine', latitude: -14.4520, longitude: 132.2699 },
   { name: 'Darwin', latitude: -12.4634, longitude: 130.8456 },
+  { name: 'Batchelor', latitude: -13.0455, longitude: 131.0283 },
+  { name: 'Woomera prohibited area', latitude: -30.9487, longitude: 136.5417 },
+  { name: 'Newcastle waters', latitude: -17.3792, longitude: 133.4075 },
 ];
 
 /**
@@ -55,11 +58,8 @@ export function getLocationByName(name: string): LocationInfo | undefined {
  */
 export async function loadWeatherData(locationName: string): Promise<WeatherData[]> {
   try {
-    // 파일명 정규화 (첫 글자를 대문자로, 나머지는 소문자로)
-    const words = locationName.toLowerCase().split(' ');
-    const capitalizedWords = words.map(word => word.charAt(0).toUpperCase() + word.slice(1));
-    const normalizedName = capitalizedWords.join(' ');
-    const response = await fetch(`/weather/${normalizedName}.csv`);
+    // 파일명 정규화 없이 그대로 사용 (대소문자 유지)
+    const response = await fetch(`/weather/${locationName}.csv`);
     
     if (!response.ok) {
       throw new Error(`Failed to load weather data for ${locationName}`);
@@ -174,11 +174,8 @@ export async function estimateRouteEnergyProduction(
   try {
     // 모든 주요 지점의 날씨 데이터 로드
     const locationDataPromises = WSC_LOCATIONS.map(async location => {
-      // 첫 글자를 대문자로, 나머지는 소문자로 정규화
-      const words = location.name.toLowerCase().split(' ');
-      const capitalizedWords = words.map(word => word.charAt(0).toUpperCase() + word.slice(1));
-      const normalizedName = capitalizedWords.join(' ');
-      const data = await loadWeatherData(normalizedName);
+      // 위치 이름을 파일명으로 그대로 사용
+      const data = await loadWeatherData(location.name);
       return { location, data };
     });
     
@@ -241,11 +238,8 @@ export async function getLocationEnergyForDate(
   panelEfficiency: number,
   mpptEfficiency: number
 ): Promise<SolarEnergyData> {
-  // 첫 글자를 대문자로, 나머지는 소문자로 정규화
-  const words = locationName.toLowerCase().split(' ');
-  const capitalizedWords = words.map(word => word.charAt(0).toUpperCase() + word.slice(1));
-  const normalizedName = capitalizedWords.join(' ');
-  const weatherData = await loadWeatherData(normalizedName);
+  // 위치 이름을 파일명으로 그대로 사용
+  const weatherData = await loadWeatherData(locationName);
   
   return calculateSolarEnergy(
     weatherData,
