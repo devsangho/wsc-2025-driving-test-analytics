@@ -55,8 +55,10 @@ export function getLocationByName(name: string): LocationInfo | undefined {
  */
 export async function loadWeatherData(locationName: string): Promise<WeatherData[]> {
   try {
-    // 파일명 정규화 (공백을 소문자로 변환)
-    const normalizedName = locationName.toLowerCase().replace(/\s+/g, ' ');
+    // 파일명 정규화 (첫 글자를 대문자로, 나머지는 소문자로)
+    const words = locationName.toLowerCase().split(' ');
+    const capitalizedWords = words.map(word => word.charAt(0).toUpperCase() + word.slice(1));
+    const normalizedName = capitalizedWords.join(' ');
     const response = await fetch(`/weather/${normalizedName}.csv`);
     
     if (!response.ok) {
@@ -172,8 +174,11 @@ export async function estimateRouteEnergyProduction(
   try {
     // 모든 주요 지점의 날씨 데이터 로드
     const locationDataPromises = WSC_LOCATIONS.map(async location => {
-      const locationName = location.name.replace(/\s+/g, ' ').toLowerCase();
-      const data = await loadWeatherData(locationName);
+      // 첫 글자를 대문자로, 나머지는 소문자로 정규화
+      const words = location.name.toLowerCase().split(' ');
+      const capitalizedWords = words.map(word => word.charAt(0).toUpperCase() + word.slice(1));
+      const normalizedName = capitalizedWords.join(' ');
+      const data = await loadWeatherData(normalizedName);
       return { location, data };
     });
     
@@ -236,7 +241,10 @@ export async function getLocationEnergyForDate(
   panelEfficiency: number,
   mpptEfficiency: number
 ): Promise<SolarEnergyData> {
-  const normalizedName = locationName.toLowerCase().replace(/\s+/g, ' ');
+  // 첫 글자를 대문자로, 나머지는 소문자로 정규화
+  const words = locationName.toLowerCase().split(' ');
+  const capitalizedWords = words.map(word => word.charAt(0).toUpperCase() + word.slice(1));
+  const normalizedName = capitalizedWords.join(' ');
   const weatherData = await loadWeatherData(normalizedName);
   
   return calculateSolarEnergy(
