@@ -8,12 +8,13 @@ import { DataType } from "@/app/contexts/data-context";
 
 export function AppSidebar() {
   const { hasDataType } = useDataContext();
-  
+
   // MS60S 메뉴 활성화 여부 결정을 위한 상태 확인
   const ms60sIrradianceActive = hasDataType(DataType.MS60S_IRRADIANCE);
   const ms60sTiltActive = hasDataType(DataType.MS60S_TILT);
   const ms60sTemperatureActive = hasDataType(DataType.MS60S_TEMPERATURE);
-  const ms60sActive = ms60sIrradianceActive || ms60sTiltActive || ms60sTemperatureActive;
+  const ms60sActive =
+    ms60sIrradianceActive || ms60sTiltActive || ms60sTemperatureActive;
 
   const items = [
     {
@@ -22,15 +23,15 @@ export function AppSidebar() {
       icon: Gauge,
     },
     {
-      title: "Driving Strategy",
-      url: "/driving-strategy",
-      icon: Map,
-      disabled: false,
-    },
-    {
       title: "Simulation",
       url: "/simulation",
       icon: PlayCircle,
+      disabled: false,
+    },
+    {
+      title: "Driving Strategy",
+      url: "/driving-strategy",
+      icon: Map,
       disabled: false,
     },
     {
