@@ -213,5 +213,18 @@ export function calculateEnergyConsumption(
   const travelTime = distance / speed;
   
   // 총 에너지 소비량 (kWh)
-  return batteryPower * travelTime;
+  let energyConsumption = batteryPower * travelTime;
+  
+  // 기본 전자 장비 소비 전력 및 최소 에너지 소비 보장
+  const baseElectronicsConsumption = 0.2; // 전자 장비 기본 소비 (kWh/hour)
+  const minConsumptionPerKm = 0.05; // 최소 km당 소비량 (kWh/km)
+  
+  // 전자장비 소비 추가
+  energyConsumption += baseElectronicsConsumption * travelTime;
+  
+  // 최소 에너지 소비량 보장
+  const minimumConsumption = distance * minConsumptionPerKm;
+  
+  // 계산된 값과 최소값 중 큰 값 반환
+  return Math.max(energyConsumption, minimumConsumption);
 } 

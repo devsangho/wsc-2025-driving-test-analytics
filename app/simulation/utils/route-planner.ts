@@ -1,6 +1,6 @@
 import { estimateRouteEnergyProduction } from "./weather-data-processor";
 import {
-  calculateChargingTime,
+  BATTERY_SPEC,
   calculateNewSOC,
   calculateRangeKm,
 } from "./battery-model";
@@ -80,7 +80,9 @@ function calculateEnergyConsumption(
   energyEfficiency: number,
   speed: number = 80,
   mass: number = 300,
-  slope: number = 0
+  slope: number = 0,
+  frontalArea: number = 0.95,
+  dragCoefficient: number = 0.14
 ): number {
   // 모터 모델을 사용한 정확한 에너지 소비량 계산
   if (distance <= 0) return 0;
@@ -94,8 +96,8 @@ function calculateEnergyConsumption(
       distance,
       speed,
       mass,
-      0.95, // 전면적 (m²)
-      0.14, // 항력 계수
+      frontalArea, // 전면적 (m²)
+      dragCoefficient, // 항력 계수
       slope
     );
 
@@ -129,6 +131,10 @@ function calculateEnergyConsumption(
  * @param lowBatteryThreshold 배터리 충전이 필요한 임계값 (%, 기본값 25%)
  * @param chargingTimeForLowBattery 배터리 충전을 위한 정차 시간 (시간, 기본값 2시간)
  * @param maxDays 최대 시뮬레이션 일수 제한
+ * @param mass 차량 질량 (kg)
+ * @param slope 도로 경사도
+ * @param frontalArea 전면적 (m^2)
+ * @param dragCoefficient 공기저항계수
  */
 export async function createRouteItinerary(
   startDate: string,
@@ -142,7 +148,11 @@ export async function createRouteItinerary(
   controlStopDuration: number = 0.5, // 기본 30분 정차
   lowBatteryThreshold: number = 25, // 배터리 임계값 (%)
   chargingTimeForLowBattery: number = 2, // 배터리 충전 시간 (시간)
-  maxDays: number = 30 // 최대 시뮬레이션 일수 제한
+  maxDays: number = 30, // 최대 시뮬레이션 일수 제한
+  mass: number = 300, // 차량 질량 (kg)
+  slope: number = 0, // 도로 경사도
+  frontalArea: number = 0.95, // 전면적 (m^2)
+  dragCoefficient: number = 0.14 // 공기저항계수
 ): Promise<RouteItinerary> {
   // 컨트롤 스탑 로드
   const controlStops = await loadControlStops();
@@ -196,29 +206,13 @@ export async function createRouteItinerary(
       if (batteryLevel <= lowBatteryThreshold) {
         const batteryLevelBefore = batteryLevel;
 
-        // 배터리 충전 시간 및 목표 충전량 계산
-        // 표준 충전 속도(0.5C)로 80%까지 충전
-        const targetSOC = 80;
-        const chargingTime = calculateChargingTime(
-          batteryLevelBefore,
-          targetSOC,
-          0.5
-        );
-
-        // 실제 사용할 충전 시간 (최대 chargingTimeForLowBattery 시간)
-        const actualChargingTime = Math.min(
-          chargingTime,
-          chargingTimeForLowBattery
-        );
-
-        // 배터리 잔량 업데이트 (80%로 설정, 또는 시간 제약으로 더 낮을 수 있음)
-        // 시간 제약이 있는 경우, 실제 충전량 계산이 필요하지만 단순화를 위해 targetSOC 적용
-        batteryLevel =
-          actualChargingTime >= chargingTime
-            ? targetSOC
-            : batteryLevelBefore +
-              (targetSOC - batteryLevelBefore) *
-                (actualChargingTime / chargingTime);
+        // 실제 충전량 계산
+        // 표준 충전 전류(standardChargeRate)로 actualChargingTime 시간 동안 충전
+        const chargedCapacity =
+          BATTERY_SPEC.standardChargeRate * chargingTimeForLowBattery; // Ah
+        const chargedPercentage =
+          (chargedCapacity / BATTERY_SPEC.capacity) * 100;
+        batteryLevel = Math.min(100, batteryLevelBefore + chargedPercentage);
 
         // 세그먼트 추가 (충전 정차)
         segments.push({
@@ -229,12 +223,12 @@ export async function createRouteItinerary(
           batteryChargingStop: true,
           batteryLevelBefore: batteryLevelBefore,
           batteryLevelAfter: batteryLevel,
-          chargingTime: actualChargingTime,
+          chargingTime: chargingTimeForLowBattery,
         });
 
         // 시간 차감 및 충전 시간 추가
-        availableDrivingTime -= actualChargingTime;
-        dailyChargingTime += actualChargingTime;
+        availableDrivingTime -= chargingTimeForLowBattery;
+        dailyChargingTime += chargingTimeForLowBattery;
 
         // 시간이 부족하면 하루 종료
         if (availableDrivingTime <= 0) {
@@ -259,7 +253,7 @@ export async function createRouteItinerary(
       );
 
       // 오늘 운행할 최대 거리 (컨트롤 스탑, 가능 시간, 배터리 중 가장 제한적인 요소)
-      let distanceForThisSegment = Math.min(
+      const distanceForThisSegment = Math.min(
         distanceToNextControlStop,
         possibleDistanceWithTime,
         possibleDistanceWithBattery,
@@ -276,44 +270,7 @@ export async function createRouteItinerary(
           batteryLevel,
         });
 
-        // 배터리 충전이 필요한 경우 (가능 거리가 0 이하)
-        if (possibleDistanceWithBattery <= 0 && batteryLevel > 0) {
-          // 최소 충전 구현
-          const minChargeAmount = 5; // 최소 5% 충전
-          batteryLevel = Math.min(100, batteryLevel + minChargeAmount);
-
-          // 충전을 위한 세그먼트 추가
-          segments.push({
-            startKm: currentKm,
-            endKm: currentKm,
-            distance: 0,
-            isControlStop: false,
-            batteryChargingStop: true,
-            batteryLevelBefore: batteryLevel - minChargeAmount,
-            batteryLevelAfter: batteryLevel,
-            chargingTime: 0.5, // 30분 충전
-          });
-
-          // 충전 시간 차감
-          availableDrivingTime -= 0.5;
-          dailyChargingTime += 0.5;
-
-          if (availableDrivingTime <= 0) {
-            break;
-          }
-
-          // 다시 이동 가능한지 확인
-          continue;
-        }
-
-        // 최소 이동 거리 설정 (진행을 위해)
-        distanceForThisSegment = Math.max(
-          1,
-          possibleDistanceWithBattery,
-          possibleDistanceWithTime
-        );
-
-        // 그래도 이동 불가능한 경우 하루 종료
+        // 이동 불가능한 경우 하루 종료
         if (distanceForThisSegment <= 0) {
           dailyNoProgressCounter++;
 
@@ -344,17 +301,71 @@ export async function createRouteItinerary(
           : segmentEndKm;
 
       // 실제 주행 거리
-      const actualDistance = Math.max(0.1, actualEndKm - segmentStartKm); // 최소 0.1km 보장
+      const actualDistance = actualEndKm - segmentStartKm;
 
       // 배터리 소비량 계산
-      const energyConsumed = calculateEnergyConsumption(
-        actualDistance,
-        energyEfficiency
-      );
+      // const energyConsumed = calculateEnergyConsumption(
+      //   actualDistance,
+      //   energyEfficiency,
+      //   averageSpeed,
+      //   mass,
+      //   slope,
+      //   frontalArea,
+      //   dragCoefficient
+      // );
 
       // 배터리 SOC 업데이트
       const batteryLevelBefore = batteryLevel;
-      batteryLevel = calculateNewSOC(batteryLevel, 0, energyConsumed); // 주행 중에는 태양광 발전량 적용 안함
+
+      // 주행 중 태양광 발전량 계산 (주행 시간 동안의 발전량)
+      const segmentDrivingTime = actualDistance / averageSpeed; // 주행 시간 (시간)
+
+      // 해당 시간대의 태양광 발전량 추정
+      const segmentSolarEnergy = await estimateRouteEnergyProduction(
+        startDate,
+        segmentDrivingTime,
+        panelArea,
+        panelEfficiency,
+        mpptEfficiency
+      );
+
+      // 해당 세그먼트의 총 발전량 계산 (kWh)
+      const totalSolarEnergyProduced = segmentSolarEnergy.reduce(
+        (sum, data) => sum + data.energyProduction,
+        0
+      ) * mpptEfficiency;
+      
+      // 태양광 효율 저하 요소 적용 (패널 먼지, 온도 영향, 전력 변환 손실 등)
+      const solarEfficiencyFactor = 0.7;
+      const actualSolarEnergy = totalSolarEnergyProduced * solarEfficiencyFactor;
+      
+      // 실제 모터 에너지 소비량 계산
+      const motorEnergyConsumed = calculateMotorEnergyConsumption(
+        actualDistance,
+        averageSpeed,
+        mass,
+        frontalArea,
+        dragCoefficient,
+        slope
+      );
+      
+      // 모터 외 시스템 소비 추가 (보조 전력 시스템, 전자장비, 기계적 손실 등)
+      const auxiliarySystemConsumption = 0.25; // 모터 소비량의 25%를 추가 소비로 가정
+      
+      // 모터 효율을 고려한 배터리 소비량 계산 (효율이 낮을수록 더 많은 에너지 소비)
+      // 여기서는 모터 효율을 이미 고려하기 때문에 효율로 나누는 대신 인버터 손실 추가
+      const inverterLoss = 0.1; // 인버터 손실 10% 가정
+      const actualEnergyConsumed = motorEnergyConsumed * (1 + auxiliarySystemConsumption) * (1 + inverterLoss);
+      
+      // 배터리 SOC 업데이트
+      batteryLevel = calculateNewSOC(
+        batteryLevel,
+        actualSolarEnergy,
+        actualEnergyConsumed
+      );
+      
+      // 디버깅 로그
+      console.log(`Segment: ${actualDistance.toFixed(1)}km, Battery: ${batteryLevelBefore.toFixed(1)}% -> ${batteryLevel.toFixed(1)}%, Solar: ${actualSolarEnergy.toFixed(2)}kWh, Consumed: ${actualEnergyConsumed.toFixed(2)}kWh, Net: ${(actualSolarEnergy - actualEnergyConsumed).toFixed(2)}kWh`);
 
       // 세그먼트 추가
       segments.push({
@@ -421,20 +432,22 @@ export async function createRouteItinerary(
         // 진행이 있었으면 카운터 초기화
         dailyNoProgressCounter = 0;
       }
-
-      // 배터리가 완전히 방전된 경우
-      if (batteryLevel <= 0) {
-        console.warn("Battery depleted, ending daily planning");
-        batteryLevel = 0; // 음수 방지
-        break;
-      }
     }
 
-    // 에너지 소비량 계산
-    const energyConsumption = calculateEnergyConsumption(
+    // 에너지 소비량 계산 - 모터 물리 모델 사용
+    const totalMotorEnergyConsumed = calculateMotorEnergyConsumption(
       dayDistance,
-      energyEfficiency
+      averageSpeed,
+      mass,
+      frontalArea,
+      dragCoefficient,
+      slope
     );
+    
+    // 모터 외 시스템 소비 추가 및 인버터 손실 고려
+    const auxiliarySystemConsumption = 0.25; // 모터 소비량의 25%를 추가 소비로 가정
+    const inverterLoss = 0.1; // 인버터 손실 10% 가정
+    const energyConsumption = totalMotorEnergyConsumed * (1 + auxiliarySystemConsumption) * (1 + inverterLoss);
 
     // 해당 일자의 주행 계획 추가
     if (segments.length > 0) {
@@ -474,9 +487,40 @@ export async function createRouteItinerary(
     previousRemainingDistance = remainingDistance;
 
     // 다음날 아침 태양광 발전으로 인한 배터리 충전 시뮬레이션 (간단히)
-    // 실제로는 나중에 정확한 발전량으로 업데이트됨
-    const morningCharge = 5; // %
-    batteryLevel = Math.min(100, batteryLevel + morningCharge);
+    // 날씨 데이터를 기반으로 더 정확한 발전량 계산
+    try {
+      // 날씨 데이터 기반 아침 발전량 계산 (4시간)
+      const morningChargeDuration = 4; // 아침 4시간 동안의 발전량
+      const morningChargeData = await estimateRouteEnergyProduction(
+        dateString,
+        morningChargeDuration / 24, // 하루의 1/6 (4시간)
+        panelArea,
+        panelEfficiency,
+        mpptEfficiency
+      );
+
+      // 아침 발전량 계산 (kWh)
+      const morningChargekWh = morningChargeData.reduce(
+        (sum, data) => sum + data.energyProduction,
+        0
+      ) * mpptEfficiency;
+      
+      // 태양광 효율 저하 요소 적용
+      const solarEfficiencyFactor = 0.7;
+      const actualMorningCharge = morningChargekWh * solarEfficiencyFactor;
+      
+      // 발전량을 배터리 충전에 적용
+      batteryLevel = calculateNewSOC(batteryLevel, actualMorningCharge, 0);
+      console.log(`Morning charge: +${actualMorningCharge.toFixed(2)}kWh, Battery: ${batteryLevel.toFixed(1)}%`);
+    } catch (error) {
+      console.warn(
+        "Failed to calculate precise morning charge, using estimate instead",
+        error
+      );
+      // 실패 시 기본 추정값으로 대체
+      const morningCharge = 5; // %
+      batteryLevel = Math.min(100, batteryLevel + morningCharge);
+    }
 
     // 목표 거리에 도달했으면 시뮬레이션 종료
     if (currentKm >= 3022) {
@@ -492,33 +536,72 @@ export async function createRouteItinerary(
   }
 
   // 각 날짜별 태양광 발전량 계산
-  const energyProductionPromise = estimateRouteEnergyProduction(
-    startDate,
-    dailyItinerary.length,
-    panelArea,
-    panelEfficiency,
-    mpptEfficiency
-  );
+  const energyProductionPromises = [];
+  for (let i = 0; i < dailyItinerary.length; i++) {
+    const day = dailyItinerary[i];
+    // 하루 8시간 동안의 발전량 추정
+    energyProductionPromises.push(
+      estimateRouteEnergyProduction(
+        day.date,
+        8 / 24, // 주행 시간(8시간) 비율
+        panelArea,
+        panelEfficiency,
+        mpptEfficiency
+      )
+    );
+  }
 
-  const energyProduction = await energyProductionPromise;
+  const energyProductionResults = await Promise.all(energyProductionPromises);
 
   // 발전량 정보 업데이트 및 배터리 상태 재계산
   batteryLevel = 100; // 처음 배터리 상태로 리셋
 
   for (let i = 0; i < dailyItinerary.length; i++) {
-    if (i < energyProduction.length) {
-      const day = dailyItinerary[i];
-      // 발전량 업데이트
-      day.energyProduction = energyProduction[i].energyProduction;
+    const day = dailyItinerary[i];
+
+    // 발전량 업데이트
+    if (i < energyProductionResults.length) {
+      const dayProduction =
+        energyProductionResults[i].reduce(
+          (sum, data) => sum + data.energyProduction,
+          0
+        ) * mpptEfficiency;
+
+      day.energyProduction = dayProduction;
 
       // 배터리 상태 재계산 (이전 날짜의 마지막 배터리 상태 사용)
       if (i > 0) {
         batteryLevel = dailyItinerary[i - 1].endBatteryLevel;
       }
 
-      // 아침 충전량 (발전량의 일부)
-      const morningChargeEnergy = day.energyProduction * 0.1; // 하루 발전량의 10%
-      batteryLevel = calculateNewSOC(batteryLevel, morningChargeEnergy, 0);
+      // 아침 충전량 계산 (날씨 데이터 기반)
+      try {
+        // 4시간 동안의 아침 발전량
+        const morningChargeData = await estimateRouteEnergyProduction(
+          day.date,
+          4 / 24, // 4시간
+          panelArea,
+          panelEfficiency,
+          mpptEfficiency
+        );
+
+        const morningChargeEnergy =
+          morningChargeData.reduce(
+            (sum, data) => sum + data.energyProduction,
+            0
+          ) * mpptEfficiency;
+
+        // 아침 충전 적용
+        batteryLevel = calculateNewSOC(batteryLevel, morningChargeEnergy, 0);
+      } catch (error) {
+        console.warn(
+          "Failed to calculate morning charge, using estimate instead:",
+          error
+        );
+        // 실패 시 일일 발전량의 10%로 추정
+        const morningChargeEnergy = day.energyProduction * 0.1;
+        batteryLevel = calculateNewSOC(batteryLevel, morningChargeEnergy, 0);
+      }
 
       // 시작 배터리 상태 업데이트
       day.startBatteryLevel = batteryLevel;
@@ -526,31 +609,54 @@ export async function createRouteItinerary(
       // 세그먼트별 배터리 업데이트
       let currentBatteryLevel = batteryLevel;
       for (const segment of day.segments) {
+        // 배터리 상태 변수 확인 및 기본값 설정
+        if (segment.batteryLevelBefore === undefined) {
+          segment.batteryLevelBefore = currentBatteryLevel;
+        }
+
         if (segment.batteryChargingStop) {
-          // 충전 세그먼트인 경우
-          segment.batteryLevelBefore = currentBatteryLevel;
-
-          // 충전 후 배터리 상태 계산 (태양광 발전 반영)
-          const chargingHours = segment.chargingTime || 0;
-          const chargeEnergy = (day.energyProduction / 8) * chargingHours; // 하루 발전량을 8시간에 나눠 시간당 발전량 추정
-          currentBatteryLevel = calculateNewSOC(
-            currentBatteryLevel,
-            chargeEnergy,
-            0
-          );
-
-          segment.batteryLevelAfter = currentBatteryLevel;
+          // 이미 계산된 값이 있다면 사용, 없으면 계산
+          if (segment.batteryLevelAfter !== undefined) {
+            currentBatteryLevel = segment.batteryLevelAfter;
+          } else {
+            // 충전 후 배터리 상태 계산 (태양광 발전 반영)
+            const chargingHours = segment.chargingTime || 0;
+            const chargeEnergy = (day.energyProduction / 8) * chargingHours; // 하루 발전량을 8시간에 나눠 시간당 발전량 추정
+            currentBatteryLevel = calculateNewSOC(
+              currentBatteryLevel,
+              chargeEnergy,
+              0
+            );
+            segment.batteryLevelAfter = currentBatteryLevel;
+          }
         } else if (segment.distance > 0) {
-          // 주행 세그먼트인 경우
-          const energyUsed = segment.distance / energyEfficiency;
+          // 이미 계산된 값이 있다면 사용, 없으면 계산
+          if (segment.batteryLevelAfter !== undefined) {
+            currentBatteryLevel = segment.batteryLevelAfter;
+          } else {
+            // 주행 세그먼트인 경우
+            const energyUsed = calculateEnergyConsumption(
+              segment.distance,
+              energyEfficiency,
+              averageSpeed,
+              mass,
+              slope,
+              frontalArea,
+              dragCoefficient
+            );
 
-          segment.batteryLevelBefore = currentBatteryLevel;
-          currentBatteryLevel = calculateNewSOC(
-            currentBatteryLevel,
-            0,
-            energyUsed
-          );
-          segment.batteryLevelAfter = currentBatteryLevel;
+            // 해당 시간대의 태양광 발전량 추정
+            const segmentDrivingTime = segment.distance / averageSpeed;
+            // 간소화된 태양광 발전량 계산 (실시간 계산은 무거우므로)
+            const solarEnergy = (day.energyProduction / 8) * segmentDrivingTime;
+
+            currentBatteryLevel = calculateNewSOC(
+              currentBatteryLevel,
+              solarEnergy,
+              energyUsed
+            );
+            segment.batteryLevelAfter = currentBatteryLevel;
+          }
         }
       }
 

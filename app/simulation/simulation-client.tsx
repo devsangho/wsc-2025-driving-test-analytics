@@ -91,7 +91,12 @@ export function SimulationClient() {
         simulationParams.mpptEfficiency,
         0.5, // 컨트롤 스탑 정차 시간 (시간)
         simulationParams.lowBatteryThreshold,
-        simulationParams.chargingTimeForLowBattery
+        simulationParams.chargingTimeForLowBattery,
+        30, // 최대 시뮬레이션 일수
+        simulationParams.carMass, // 사용자 입력 차량 질량
+        0.02, // 기본 경사도
+        simulationParams.frontalArea, // 사용자 입력 전면적
+        simulationParams.dragCoefficient // 사용자 입력 공기저항계수
       );
 
       setRouteItinerary(itinerary);
