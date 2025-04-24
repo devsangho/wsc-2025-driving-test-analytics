@@ -24,6 +24,7 @@ import { BATTERY_SPEC } from "./utils/battery-model";
 // 2025년 및 다른 연도 사용 시 월/일 기준으로 2023년 데이터를 자동 매핑
 const AVAILABLE_WEATHER_DATA_START = new Date("2023-08-18");
 const AVAILABLE_WEATHER_DATA_END = new Date("2023-09-15");
+const MAX_SIMULATION_DAYS = 30; // 최대 시뮬레이션 일수
 
 const formatDate = (date: Date) => {
   const year = date.getFullYear();
@@ -92,7 +93,7 @@ export function SimulationClient() {
         0.5, // 컨트롤 스탑 정차 시간 (시간)
         simulationParams.lowBatteryThreshold,
         simulationParams.chargingTimeForLowBattery,
-        30, // 최대 시뮬레이션 일수
+        MAX_SIMULATION_DAYS, // 최대 시뮬레이션 일수
         simulationParams.carMass, // 사용자 입력 차량 질량
         0.02, // 기본 경사도
         simulationParams.frontalArea, // 사용자 입력 전면적
@@ -445,11 +446,13 @@ export function SimulationClient() {
           <CardContent>
             <div className="space-y-8">
               {/* Daily Result Cards */}
-              {routeItinerary.dailyItinerary.map((day, index) => (
+              {routeItinerary.dailyItinerary
+                .filter(day => day.totalDistance > 0) // 주행 거리가 0보다 큰 날만 표시
+                .map((day, index) => (
                 <Card
                   key={day.date}
                   className={`overflow-hidden ${
-                    index === routeItinerary.dailyItinerary.length - 1
+                    index === routeItinerary.dailyItinerary.filter(d => d.totalDistance > 0).length - 1
                       ? "border-2 border-primary"
                       : ""
                   }`}
@@ -483,8 +486,13 @@ export function SimulationClient() {
                             Battery Charged
                           </Badge>
                         )}
-                        {index === routeItinerary.dailyItinerary.length - 1 && (
-                          <Badge className="bg-green-500">Finish</Badge>
+                        {index === routeItinerary.dailyItinerary.filter(d => d.totalDistance > 0).length - 1 && (
+                          <Badge className={`${day.endKm >= 3022 ? "bg-green-600 text-white font-bold px-3" : "bg-green-500"}`}>
+                            {day.endKm >= 3022 ? "DESTINATION REACHED" : "Finish"}
+                          </Badge>
+                        )}
+                        {index === routeItinerary.dailyItinerary.filter(d => d.totalDistance > 0).length - 1 && day.reachedMaxDays && (
+                          <Badge className="bg-red-500">Max Days Reached</Badge>
                         )}
                         {index === 0 && (
                           <Badge className="bg-purple-500">Start</Badge>
@@ -704,6 +712,17 @@ export function SimulationClient() {
                       </p>
                     </div>
                   ) : null}
+                  
+                  {routeItinerary.dailyItinerary.length > 0 && 
+                   routeItinerary.dailyItinerary[routeItinerary.dailyItinerary.length - 1].reachedMaxDays && (
+                    <div className="mb-4 p-3 bg-red-50 text-red-800 rounded-md text-sm">
+                      <p>
+                        <strong>주의:</strong> 시뮬레이션이 최대 허용 일수({MAX_SIMULATION_DAYS}일)에 도달하여 종료되었습니다.
+                        실제 주행에서는 더 많은 시간이 소요될 수 있습니다.
+                      </p>
+                    </div>
+                  )}
+                  
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-4">
                       <div>
@@ -714,7 +733,7 @@ export function SimulationClient() {
                           {routeItinerary.totalDistance.toFixed(1)} km
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {routeItinerary.totalDays} days
+                          {routeItinerary.dailyItinerary.filter(day => day.totalDistance > 0).length} days
                         </div>
                       </div>
                       <div>

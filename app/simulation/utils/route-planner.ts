@@ -35,6 +35,7 @@ export interface DailyItinerary {
   startBatteryLevel: number; // 하루 시작 시 배터리 잔량 (%)
   endBatteryLevel: number; // 하루 종료 시 배터리 잔량 (%)
   totalChargingTime: number; // 충전을 위한 총 정차 시간 (시간)
+  reachedMaxDays?: boolean; // 시뮬레이션이 최대 일수에 도달했는지 여부
 }
 
 export interface RouteItinerary {
@@ -388,6 +389,7 @@ export async function createRouteItinerary(
 
       // 목표 거리(3022km)에 도달하면 시뮬레이션 종료
       if (currentKm >= 3022) {
+        console.log("Reached destination (3022km), simulation completed successfully");
         remainingDistance = 0;
         break;
       }
@@ -463,6 +465,7 @@ export async function createRouteItinerary(
         startBatteryLevel: startBatteryLevel,
         endBatteryLevel: batteryLevel,
         totalChargingTime: dailyChargingTime,
+        reachedMaxDays: currentDay >= maxDays,
       });
     } else {
       console.warn(
@@ -524,6 +527,8 @@ export async function createRouteItinerary(
 
     // 목표 거리에 도달했으면 시뮬레이션 종료
     if (currentKm >= 3022) {
+      console.log("Reached destination (3022km), finishing simulation");
+      remainingDistance = 0; // Ensure remainingDistance is 0 to exit the main loop
       break;
     }
   }
@@ -533,12 +538,22 @@ export async function createRouteItinerary(
     console.warn(
       `Route planning reached the maximum allowed days (${maxDays})`
     );
+    
+    // Add a note to the last day that the simulation stopped due to maxDays limit
+    if (dailyItinerary.length > 0) {
+      const lastDay = dailyItinerary[dailyItinerary.length - 1];
+      // Add a flag to indicate the simulation was cut off due to time limit
+      lastDay.reachedMaxDays = true;
+    }
   }
+  
+  // 주행 거리가 0인 날 제거 (filter하여 새 배열 생성)
+  const filteredDailyItinerary = dailyItinerary.filter(day => day.totalDistance > 0);
 
   // 각 날짜별 태양광 발전량 계산
   const energyProductionPromises = [];
-  for (let i = 0; i < dailyItinerary.length; i++) {
-    const day = dailyItinerary[i];
+  for (let i = 0; i < filteredDailyItinerary.length; i++) {
+    const day = filteredDailyItinerary[i];
     // 하루 8시간 동안의 발전량 추정
     energyProductionPromises.push(
       estimateRouteEnergyProduction(
@@ -556,8 +571,8 @@ export async function createRouteItinerary(
   // 발전량 정보 업데이트 및 배터리 상태 재계산
   batteryLevel = 100; // 처음 배터리 상태로 리셋
 
-  for (let i = 0; i < dailyItinerary.length; i++) {
-    const day = dailyItinerary[i];
+  for (let i = 0; i < filteredDailyItinerary.length; i++) {
+    const day = filteredDailyItinerary[i];
 
     // 발전량 업데이트
     if (i < energyProductionResults.length) {
@@ -571,7 +586,7 @@ export async function createRouteItinerary(
 
       // 배터리 상태 재계산 (이전 날짜의 마지막 배터리 상태 사용)
       if (i > 0) {
-        batteryLevel = dailyItinerary[i - 1].endBatteryLevel;
+        batteryLevel = filteredDailyItinerary[i - 1].endBatteryLevel;
       }
 
       // 아침 충전량 계산 (날씨 데이터 기반)
@@ -666,36 +681,36 @@ export async function createRouteItinerary(
   }
 
   // 총계 계산
-  const totalEnergyProduction = dailyItinerary.reduce(
+  const totalEnergyProduction = filteredDailyItinerary.reduce(
     (sum, day) => sum + day.energyProduction,
     0
   );
 
-  const totalEnergyConsumption = dailyItinerary.reduce(
+  const totalEnergyConsumption = filteredDailyItinerary.reduce(
     (sum, day) => sum + day.energyConsumption,
     0
   );
 
-  const totalChargingHours = dailyItinerary.reduce(
+  const totalChargingHours = filteredDailyItinerary.reduce(
     (sum, day) => sum + day.totalChargingTime,
     0
   );
 
   // 평균 배터리 레벨 계산
-  const dayEndBatteryLevels = dailyItinerary.map((day) => day.endBatteryLevel);
+  const dayEndBatteryLevels = filteredDailyItinerary.map((day) => day.endBatteryLevel);
   const averageBatteryLevel =
     dayEndBatteryLevels.reduce((sum, level) => sum + level, 0) /
     (dayEndBatteryLevels.length || 1);
 
   // 예상 도착일
   const estimatedArrivalDate = new Date(
-    dailyItinerary[dailyItinerary.length - 1].date
+    filteredDailyItinerary[filteredDailyItinerary.length - 1].date
   );
 
   return {
-    totalDays: dailyItinerary.length,
+    totalDays: filteredDailyItinerary.length,
     totalDistance,
-    dailyItinerary,
+    dailyItinerary: filteredDailyItinerary,
     controlStops,
     totalEnergyProduction,
     totalEnergyConsumption,
