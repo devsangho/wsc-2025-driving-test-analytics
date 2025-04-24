@@ -129,14 +129,11 @@ export function calculateNewSOC(
   console.log(`Battery calculation - Initial SOC: ${initialSOC.toFixed(2)}%, Solar: ${solarProduction.toFixed(4)}kWh, Consumption: ${energyConsumption.toFixed(4)}kWh`);
   
   // 현실적인 시뮬레이션을 위한 조정
-  // 1. 발전량 조정 - 실제 발전량은 이론값의 40%만 활용된다고 가정
-  // 2. 소비량 조정 - 실제 소비량은 계산값보다 2배 더 크다고 가정 (각종 손실 요소)
-  // 3. 최소 소비량 보장 - 경로당 최소 0.1kWh는 소비한다고 가정
-  const adjustedProduction = solarProduction * 0.4;
-  const adjustedConsumption = Math.max(energyConsumption * 2, 0.1);
+  // 최소 소비량 보장 - 경로당 최소 0.1kWh는 소비한다고 가정
+  const adjustedConsumption = Math.max(energyConsumption, 0.1);
   
   // 에너지 순 변화량 (kWh)
-  const netEnergyChange = adjustedProduction - adjustedConsumption;
+  const netEnergyChange = solarProduction - adjustedConsumption;
   
   // SOC 변화 (%) = 에너지 변화량 / 배터리 용량 * 100
   const socChange = (netEnergyChange / BATTERY_SPEC.energy) * 100;
@@ -145,7 +142,7 @@ export function calculateNewSOC(
   const newSOC = Math.max(0, Math.min(100, initialSOC + socChange));
   
   // 디버깅을 위한 출력 값 로깅
-  console.log(`Battery adjusted - Adj.Consumption: ${adjustedConsumption.toFixed(4)}kWh (${(adjustedConsumption/energyConsumption).toFixed(1)}x), Adj.Production: ${adjustedProduction.toFixed(4)}kWh (${(adjustedProduction/solarProduction).toFixed(1)}x), Net Change: ${netEnergyChange.toFixed(4)}kWh (${socChange.toFixed(2)}%), New SOC: ${newSOC.toFixed(2)}%`);
+  console.log(`Battery adjusted - Consumption: ${adjustedConsumption.toFixed(4)}kWh, Production: ${solarProduction.toFixed(4)}kWh, Net Change: ${netEnergyChange.toFixed(4)}kWh (${socChange.toFixed(2)}%), New SOC: ${newSOC.toFixed(2)}%`);
   
   return newSOC;
 }
