@@ -193,6 +193,11 @@ export function calculateEnergyConsumption(
   dragCoefficient: number = 0.14,
   slope: number = 0
 ): number {
+  // 거리가 0이면 에너지 소비 없음
+  if (distance <= 0) {
+    return 0;
+  }
+  
   // 주행 저항력 계산 (N)
   const resistance = calculateDrivingResistance(speed, mass, frontalArea, dragCoefficient, slope);
   

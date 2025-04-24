@@ -41,7 +41,7 @@ export function SimulationClient() {
     panelArea: 6.0,
     panelEfficiency: 0.215,
     mpptEfficiency: 0.98,
-    avgSpeed: 80.0,
+    avgSpeed: 60.0,
     energyEfficiency: 10.0, // km/kWh
     startDate: new Date("2025-10-22"), // WSC 2025 기준 날짜
     timeOfDay: 12,
@@ -95,7 +95,7 @@ export function SimulationClient() {
         simulationParams.chargingTimeForLowBattery,
         MAX_SIMULATION_DAYS, // 최대 시뮬레이션 일수
         simulationParams.carMass, // 사용자 입력 차량 질량
-        0.02, // 기본 경사도
+        0.0, // 기본 경사도 (지형 데이터를 사용할 수 없을 경우 사용)
         simulationParams.frontalArea, // 사용자 입력 전면적
         simulationParams.dragCoefficient // 사용자 입력 공기저항계수
       );
@@ -360,6 +360,32 @@ export function SimulationClient() {
                     />
                   </div>
                 </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="avgSpeed">Average Speed (km/h)</Label>
+                  <div className="flex items-center gap-4">
+                    <Slider
+                      id="avgSpeed-slider"
+                      min={40}
+                      max={100}
+                      step={5}
+                      value={[simulationParams.avgSpeed]}
+                      onValueChange={(value) =>
+                        handleSliderChange("avgSpeed", value)
+                      }
+                      className="flex-1"
+                    />
+                    <Input
+                      id="avgSpeed"
+                      type="number"
+                      value={simulationParams.avgSpeed}
+                      onChange={(e) =>
+                        handleParamChange("avgSpeed", e.target.value)
+                      }
+                      className="w-20"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -432,7 +458,23 @@ export function SimulationClient() {
             </div>
           </div>
         </CardContent>
-        <Card></Card>
+        <Card className="bg-muted/30 p-3 rounded-md border border-muted">
+          <h3 className="text-sm font-semibold mb-2">시뮬레이션 정보</h3>
+          <div className="grid grid-cols-1 gap-y-1 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">지형 데이터:</span>
+              <span>실제 WSC 경로 CSV 데이터 기반</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">경사도 계산:</span>
+              <span>실시간 위치 기반 자동 계산</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">총 경로 거리:</span>
+              <span>3,022 km</span>
+            </div>
+          </div>
+        </Card>
       </Card>
 
       {routeItinerary && (
@@ -637,50 +679,336 @@ export function SimulationClient() {
                           </div>
                         </div>
 
-                        {/* Segment Details */}
+                        {/* Segment Details - 시계열 데이터 형태로 표시 */}
                         <div className="mt-4">
-                          <div className="text-sm font-medium text-muted-foreground mb-2">
-                            Segment Details
+                          <div className="text-sm font-medium text-muted-foreground mb-2 flex justify-between items-center">
+                            <span>Time Series Data (8시간 주행)</span>
+                            <span className="text-xs text-muted-foreground">10초 간격 샘플링</span>
                           </div>
-                          <div className="text-xs max-h-28 overflow-y-auto pr-2">
+                          <div className="text-xs max-h-40 overflow-y-auto pr-2">
                             <table className="w-full border-collapse">
-                              <thead>
+                              <thead className="sticky top-0 bg-background z-10">
                                 <tr className="border-b">
-                                  <th className="text-left py-1">Type</th>
-                                  <th className="text-right py-1">Distance</th>
-                                  <th className="text-right py-1">
-                                    Battery Before
-                                  </th>
-                                  <th className="text-right py-1">
-                                    Battery After
-                                  </th>
+                                  <th className="text-left py-1 px-1">시간</th>
+                                  <th className="text-left py-1 px-1">상태</th>
+                                  <th className="text-right py-1 px-1">위치 (km)</th>
+                                  <th className="text-right py-1 px-1">속도 (km/h)</th>
+                                  <th className="text-right py-1 px-1">배터리 (%)</th>
+                                  <th className="text-right py-1 px-1">변화</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {day.segments.map((segment, i) => (
-                                  <tr key={i} className="border-b border-muted">
-                                    <td className="py-1">
-                                      {segment.isControlStop
-                                        ? `Control Stop: ${segment.controlStopName}`
-                                        : segment.batteryChargingStop
-                                        ? `Battery Charging (${segment.chargingTime}h)`
-                                        : "Driving"}
-                                    </td>
-                                    <td className="text-right py-1">
-                                      {segment.distance.toFixed(1)} km
-                                    </td>
-                                    <td className="text-right py-1">
-                                      {segment.batteryLevelBefore?.toFixed(1) ||
-                                        "-"}
-                                      %
-                                    </td>
-                                    <td className="text-right py-1">
-                                      {segment.batteryLevelAfter?.toFixed(1) ||
-                                        "-"}
-                                      %
-                                    </td>
-                                  </tr>
-                                ))}
+                                {(() => {
+                                  // 정확히 8시간(28,800초)을 10초 간격으로 분할
+                                  const TOTAL_SECONDS = 8 * 60 * 60; // 8시간
+                                  const INTERVAL = 10; // 10초 간격
+                                  const TOTAL_INTERVALS = TOTAL_SECONDS / INTERVAL;
+                                  
+                                  // 시계열 데이터 생성
+                                  const timeSeriesRows: React.ReactNode[] = [];
+                                  let currentTime = 0; // 시간 (초)
+                                  let currentDistance = 0; // 현재 이동 거리 (km)
+                                  let currentBattery = day.startBatteryLevel; // 현재 배터리 잔량
+                                  let currentSegmentIndex = 0; // 현재 처리 중인 세그먼트 인덱스
+                                  let remainingSegmentTime = 0; // 현재 세그먼트에서 남은 시간 (초)
+                                  let currentSpeed = 0; // 현재 속도
+                                  let currentState = ''; // 현재 상태 (주행중, 충전중, 컨트롤 스탑)
+                                  let batteryRatePerInterval = 0; // 10초당 배터리 변화율
+                                  
+                                  // 각 간격마다 데이터 포인트 생성
+                                  for (let interval = 0; interval < TOTAL_INTERVALS; interval++) {
+                                    // 이전 배터리 값 저장
+                                    const prevBattery = currentBattery;
+                                    
+                                    // 현재 처리해야 할 세그먼트 가져오기
+                                    const currentSegment = day.segments[currentSegmentIndex];
+                                    
+                                    // 세그먼트가 없으면 루프 종료
+                                    if (!currentSegment) {
+                                      break; // 모든 세그먼트가 완료되면 시간 진행 중단
+                                    } else {
+                                      // 새 세그먼트를 시작하는 경우
+                                      if (remainingSegmentTime <= 0) {
+                                        // 세그먼트 유형에 따라 처리
+                                        if (currentSegment.segmentType === 'Driving') {
+                                          // 주행 세그먼트
+                                          const segmentDistance = currentSegment.distance;
+                                          const speed = simulationParams.avgSpeed;
+                                          const driveTimeHours = segmentDistance / speed;
+                                          const driveTimeSeconds = driveTimeHours * 3600;
+                                          
+                                          // 세그먼트 정보 설정
+                                          currentState = '주행중';
+                                          currentSpeed = speed;
+                                          remainingSegmentTime = driveTimeSeconds;
+                                          
+                                          // 배터리 소모율 계산 (10초당)
+                                          const batteryStart = currentSegment.batteryLevelBefore !== undefined ? currentSegment.batteryLevelBefore : currentBattery;
+                                          const batteryEnd = currentSegment.batteryLevelAfter !== undefined ? currentSegment.batteryLevelAfter : 0;
+                                          const totalBatteryChange = batteryEnd - batteryStart;
+                                          batteryRatePerInterval = (totalBatteryChange / driveTimeSeconds) * INTERVAL;
+                                        } else if (currentSegment.segmentType === 'ControlStop') {
+                                          // 컨트롤 스탑
+                                          const stopTimeHours = currentSegment.chargingTime || 0.5;
+                                          const stopTimeSeconds = stopTimeHours * 3600;
+                                          
+                                          // 세그먼트 정보 설정
+                                          currentState = `컨트롤 스탑: ${currentSegment.controlStopName}`;
+                                          currentSpeed = 0;
+                                          remainingSegmentTime = stopTimeSeconds;
+                                          
+                                          // 배터리 변화율 계산 (컨트롤 스탑에서는 유지)
+                                          batteryRatePerInterval = 0;
+                                        } else if (currentSegment.segmentType === 'BatteryCharging') {
+                                          // 배터리 충전
+                                          const chargeTimeHours = currentSegment.chargingTime || 0;
+                                          const chargeTimeSeconds = chargeTimeHours * 3600;
+                                          
+                                          // 세그먼트 정보 설정
+                                          currentState = '배터리 충전';
+                                          currentSpeed = 0;
+                                          remainingSegmentTime = chargeTimeSeconds;
+                                          
+                                          // 배터리 충전율 계산 (10초당)
+                                          const batteryStart = currentSegment.batteryLevelBefore !== undefined ? currentSegment.batteryLevelBefore : currentBattery;
+                                          const batteryEnd = currentSegment.batteryLevelAfter !== undefined ? currentSegment.batteryLevelAfter : 100;
+                                          const totalChargeAmount = batteryEnd - batteryStart;
+                                          batteryRatePerInterval = (totalChargeAmount / chargeTimeSeconds) * INTERVAL;
+                                        }
+                                      }
+                                      
+                                      // 세그먼트 시간 감소
+                                      remainingSegmentTime -= INTERVAL;
+                                      
+                                      // 세그먼트 완료 여부 확인
+                                      if (remainingSegmentTime <= 0) {
+                                        // 마지막 간격에서는 정확한 최종 배터리 값으로 설정
+                                        if (currentSegment.batteryLevelAfter !== undefined) {
+                                          currentBattery = currentSegment.batteryLevelAfter;
+                                        }
+                                        
+                                        // 마지막 간격에서는 정확한 최종 위치로 설정
+                                        if (currentSegment.segmentType === 'Driving') {
+                                          currentDistance = currentSegment.endKm;
+                                        }
+                                        
+                                        // 다음 세그먼트로 이동 - 바로 다음 세그먼트 처리 준비
+                                        currentSegmentIndex++;
+                                        
+                                        // 다음 세그먼트가 있는지 확인
+                                        const nextSegment = day.segments[currentSegmentIndex];
+                                        if (nextSegment) {
+                                          // 배터리가 25% 이상이면 무조건 주행 세그먼트로 전환
+                                          if (currentBattery >= 25 && nextSegment.segmentType !== 'Driving' && currentSegmentIndex + 1 < day.segments.length) {
+                                            // 다음에 주행 세그먼트가 있는지 확인
+                                            let nextDrivingSegmentIndex = -1;
+                                            for (let i = currentSegmentIndex + 1; i < day.segments.length; i++) {
+                                              if (day.segments[i].segmentType === 'Driving') {
+                                                nextDrivingSegmentIndex = i;
+                                                break;
+                                              }
+                                            }
+                                            
+                                            // 다음 주행 세그먼트가 있으면 현재 세그먼트를 건너뛰고 주행 세그먼트로 전환
+                                            if (nextDrivingSegmentIndex !== -1) {
+                                              currentSegmentIndex = nextDrivingSegmentIndex;
+                                              const drivingSegment = day.segments[currentSegmentIndex];
+                                              
+                                              // 주행 세그먼트 설정
+                                              const segmentDistance = drivingSegment.distance;
+                                              const speed = simulationParams.avgSpeed;
+                                              const driveTimeHours = segmentDistance / speed;
+                                              const driveTimeSeconds = driveTimeHours * 3600;
+                                              
+                                              currentState = '주행중';
+                                              currentSpeed = speed;
+                                              remainingSegmentTime = driveTimeSeconds;
+                                              
+                                              // 배터리 소모율 계산
+                                              const batteryStart = drivingSegment.batteryLevelBefore !== undefined ? drivingSegment.batteryLevelBefore : currentBattery;
+                                              const batteryEnd = drivingSegment.batteryLevelAfter !== undefined ? drivingSegment.batteryLevelAfter : 0;
+                                              const totalBatteryChange = batteryEnd - batteryStart;
+                                              batteryRatePerInterval = (totalBatteryChange / driveTimeSeconds) * INTERVAL;
+                                              
+                                              continue;
+                                            }
+                                          }
+                                          
+                                          // 기존 세그먼트 처리 로직
+                                          if (nextSegment.segmentType === 'Driving') {
+                                            // 주행 세그먼트
+                                            const segmentDistance = nextSegment.distance;
+                                            const speed = simulationParams.avgSpeed;
+                                            const driveTimeHours = segmentDistance / speed;
+                                            const driveTimeSeconds = driveTimeHours * 3600;
+                                            
+                                            // 세그먼트 정보 설정
+                                            currentState = '주행중';
+                                            currentSpeed = speed;
+                                            remainingSegmentTime = driveTimeSeconds;
+                                            
+                                            // 배터리 소모율 계산 (10초당)
+                                            const batteryStart = nextSegment.batteryLevelBefore !== undefined ? nextSegment.batteryLevelBefore : currentBattery;
+                                            const batteryEnd = nextSegment.batteryLevelAfter !== undefined ? nextSegment.batteryLevelAfter : 0;
+                                            const totalBatteryChange = batteryEnd - batteryStart;
+                                            batteryRatePerInterval = (totalBatteryChange / driveTimeSeconds) * INTERVAL;
+                                          } else if (nextSegment.segmentType === 'ControlStop') {
+                                            // 컨트롤 스탑
+                                            const stopTimeHours = nextSegment.chargingTime || 0.5;
+                                            const stopTimeSeconds = stopTimeHours * 3600;
+                                            
+                                            // 세그먼트 정보 설정
+                                            currentState = `컨트롤 스탑: ${nextSegment.controlStopName}`;
+                                            currentSpeed = 0;
+                                            remainingSegmentTime = stopTimeSeconds;
+                                            
+                                            // 배터리 변화율 계산 (컨트롤 스탑에서는 유지)
+                                            batteryRatePerInterval = 0;
+                                          } else if (nextSegment.segmentType === 'BatteryCharging') {
+                                            // 배터리 충전
+                                            const chargeTimeHours = nextSegment.chargingTime || 0;
+                                            const chargeTimeSeconds = chargeTimeHours * 3600;
+                                            
+                                            // 세그먼트 정보 설정
+                                            currentState = '배터리 충전';
+                                            currentSpeed = 0;
+                                            remainingSegmentTime = chargeTimeSeconds;
+                                            
+                                            // 배터리 충전율 계산 (10초당)
+                                            const batteryStart = nextSegment.batteryLevelBefore !== undefined ? nextSegment.batteryLevelBefore : currentBattery;
+                                            const batteryEnd = nextSegment.batteryLevelAfter !== undefined ? nextSegment.batteryLevelAfter : 100;
+                                            const totalChargeAmount = batteryEnd - batteryStart;
+                                            batteryRatePerInterval = (totalChargeAmount / chargeTimeSeconds) * INTERVAL;
+                                          }
+                                        } else {
+                                          // 다음 세그먼트가 없음 - 대기 상태로 전환
+                                          currentState = '대기중';
+                                          currentSpeed = 0;
+                                          batteryRatePerInterval = 0;
+                                          remainingSegmentTime = 0;
+                                        }
+                                      } else {
+                                        // 배터리 업데이트
+                                        currentBattery += batteryRatePerInterval;
+                                        
+                                        // 배터리 레벨 범위 제한 (0~100%)
+                                        currentBattery = Math.max(0, Math.min(100, currentBattery));
+                                        
+                                        // 배터리가 25% 이하로 떨어지면 즉시 충전으로 전환
+                                        if (currentBattery <= 25 && currentSegment.segmentType === 'Driving') {
+                                          // 현재 위치에서 충전으로 전환
+                                          currentState = '배터리 충전';
+                                          currentSpeed = 0;
+                                          
+                                          // 남은 시간을 충전 시간으로 설정 (2시간)
+                                          const chargingTimeHours = simulationParams.chargingTimeForLowBattery;
+                                          const chargingTimeSeconds = chargingTimeHours * 3600;
+                                          remainingSegmentTime = chargingTimeSeconds;
+                                          
+                                          // 충전 속도 계산 (10초당)
+                                          const targetBatteryLevel = 60; // 최소 60%까지 충전
+                                          const totalChargeAmount = targetBatteryLevel - currentBattery;
+                                          batteryRatePerInterval = (totalChargeAmount / chargingTimeSeconds) * INTERVAL;
+                                          
+                                          // 현재 세그먼트를 충전 세그먼트로 강제 변경
+                                          // 이 값은 시각화에만 사용됨
+                                          currentSegment.segmentType = 'BatteryCharging';
+                                          continue;
+                                        }
+                                        
+                                        // 주행 중인 경우 거리 업데이트
+                                        if (currentSegment.segmentType === 'Driving') {
+                                          // 10초 동안 이동한 거리 계산 (km)
+                                          const distancePerInterval = (currentSpeed / 3600) * INTERVAL;
+                                          currentDistance += distancePerInterval;
+                                        }
+                                      }
+                                    }
+                                    
+                                    // 시간 포맷팅 (HH:MM:SS)
+                                    const hours = Math.floor(currentTime / 3600);
+                                    const minutes = Math.floor((currentTime % 3600) / 60);
+                                    const seconds = currentTime % 60;
+                                    const timeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                                    
+                                    // 배터리 변화량 계산
+                                    const batteryChange = currentBattery - prevBattery;
+                                    const batteryChangeStr = batteryChange >= 0 
+                                      ? `+${batteryChange.toFixed(2)}`
+                                      : `${batteryChange.toFixed(2)}`;
+                                    
+                                    // 상태에 따른 스타일 클래스 결정
+                                    let rowClassName = 'border-b hover:bg-muted/20';
+                                    let stateElement;
+                                    
+                                    if (currentState === '주행중') {
+                                      rowClassName += ' border-green-50';
+                                      stateElement = (
+                                        <span className="inline-block rounded-sm px-1 text-green-700 bg-green-50">
+                                          주행중
+                                        </span>
+                                      );
+                                    } else if (currentState.includes('컨트롤 스탑')) {
+                                      rowClassName += ' bg-blue-50/70';
+                                      stateElement = (
+                                        <span className="inline-block rounded-sm px-1 text-blue-700 bg-blue-50">
+                                          {currentState}
+                                        </span>
+                                      );
+                                    } else if (currentState === '배터리 충전') {
+                                      rowClassName += ' bg-amber-50/70';
+                                      stateElement = (
+                                        <span className="inline-block rounded-sm px-1 text-amber-700 bg-amber-50">
+                                          배터리 충전
+                                        </span>
+                                      );
+                                    } else {
+                                      stateElement = (
+                                        <span className="inline-block rounded-sm px-1 text-gray-700 bg-gray-50">
+                                          {currentState || '대기중'}
+                                        </span>
+                                      );
+                                    }
+                                    
+                                    // 매 분마다 시간 표시를 강조
+                                    const isMinuteStart = seconds === 0;
+                                    if (isMinuteStart) {
+                                      rowClassName += ' border-t border-muted';
+                                    }
+                                    
+                                    // 행 추가
+                                    timeSeriesRows.push(
+                                      <tr 
+                                        key={`time-${currentTime}`} 
+                                        className={rowClassName}
+                                      >
+                                        <td className="text-left py-1 px-1 font-mono text-xs">
+                                          {timeStr}
+                                        </td>
+                                        <td className="text-left py-1 px-1">
+                                          {stateElement}
+                                        </td>
+                                        <td className="text-right py-1 px-1 font-mono">
+                                          {currentDistance.toFixed(2)}
+                                        </td>
+                                        <td className="text-right py-1 px-1 font-mono">
+                                          {currentSpeed}
+                                        </td>
+                                        <td className="text-right py-1 px-1 font-mono">
+                                          {currentBattery.toFixed(2)}
+                                        </td>
+                                        <td className="text-right py-1 px-1 font-mono text-red-600">
+                                          {batteryChangeStr}
+                                        </td>
+                                      </tr>
+                                    );
+                                    
+                                    // 시간 증가 (10초)
+                                    currentTime += INTERVAL;
+                                  }
+                                  
+                                  return timeSeriesRows;
+                                })()}
                               </tbody>
                             </table>
                           </div>
