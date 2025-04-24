@@ -81,16 +81,31 @@ export async function loadWeatherData(locationName: string): Promise<WeatherData
 
 /**
  * 입력된 날짜에 대한 2023년 데이터 찾기
- * 2025년과 같은 미래 날짜라면 월/일이 동일한 2023년 날짜를 반환
+ * 2025년과 같은 미래 날짜라면 8/24 기준으로 날짜 매핑
  */
 function mapDateTo2023(dateStr: string): string {
   const date = new Date(dateStr);
-  // 2023년이 아닌 경우, 같은 월/일의 2023년 데이터 사용
+  // 입력 날짜가 2023년이 아닌 경우 매핑
   if (date.getFullYear() !== 2023) {
-    const month = date.getMonth();
-    const day = date.getDate();
-    const mappedDate = new Date(2023, month, day);
-    return mappedDate.toISOString().split('T')[0]; // YYYY-MM-DD 형식
+    // 기준일: 2023-08-24
+    const referenceDate = new Date("2023-08-24");
+    
+    // 입력된 날짜와 기준일(원하는 출발일) 사이의 날짜 차이 계산
+    const inputDate = new Date(dateStr);
+    const yearStart = new Date(inputDate.getFullYear(), 0, 1);
+    const dayOfYear = Math.floor((inputDate.getTime() - yearStart.getTime()) / (24 * 60 * 60 * 1000));
+    
+    const referenceYear = referenceDate.getFullYear();
+    const referenceYearStart = new Date(referenceYear, 0, 1);
+    const referenceDayOfYear = Math.floor((referenceDate.getTime() - referenceYearStart.getTime()) / (24 * 60 * 60 * 1000));
+    
+    // 날짜 차이를 기준일에 더함
+    const daysDiff = dayOfYear - referenceDayOfYear;
+    const mappedDate = new Date(referenceDate);
+    mappedDate.setDate(referenceDate.getDate() + daysDiff);
+    
+    // 결과 반환
+    return mappedDate.toISOString().split('T')[0];
   }
   return dateStr;
 }
@@ -106,27 +121,38 @@ export function calculateSolarEnergy(
   mpptEfficiency: number,
   temperature: number = 25 // 기본 온도 (°C)
 ): SolarEnergyData {
-  // 2023년으로 날짜 매핑 (필요한 경우)
+  // 2023년 8월 24일 기준으로 날짜 매핑
   const mappedDate = mapDateTo2023(date);
   // 원래 날짜와 다를 경우 로그 출력
   if (mappedDate !== date) {
-    console.log(`Mapping date from ${date} to ${mappedDate} for weather data`);
+    console.log(`Mapping date from ${date} to ${mappedDate} for weather data (8월 24일 기준)`);
   }
 
   // 해당 날짜의 데이터만 필터링
   let dayData = weatherData.filter(data => data.date === mappedDate);
   
   if (dayData.length === 0) {
-    // 해당 날짜에 데이터가 없는 경우, 첫 번째 날짜의 데이터를 사용
+    // 사용 가능한 날짜 리스트 가져오기
     const availableDates = Array.from(new Set(weatherData.map(data => data.date))).sort();
     if (availableDates.length === 0) {
       throw new Error(`No weather data found at all`);
     }
     
-    // 첫 번째 사용 가능한 날짜의 데이터 사용
-    const firstAvailableDate = availableDates[0];
-    console.log(`No data for ${mappedDate}, using data from ${firstAvailableDate} instead`);
-    dayData = weatherData.filter(data => data.date === firstAvailableDate);
+    // 매핑된 날짜와 가장 가까운 날짜 찾기
+    const mappedDateObj = new Date(mappedDate);
+    let closestDate = availableDates[0];
+    let minDiff = Math.abs(new Date(closestDate).getTime() - mappedDateObj.getTime());
+    
+    for (const dateStr of availableDates) {
+      const diff = Math.abs(new Date(dateStr).getTime() - mappedDateObj.getTime());
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestDate = dateStr;
+      }
+    }
+    
+    console.log(`No data for ${mappedDate}, using closest available date: ${closestDate}`);
+    dayData = weatherData.filter(data => data.date === closestDate);
   }
   
   // 시간별 데이터 처리

@@ -5,6 +5,13 @@ import path from "path";
 export async function GET() {
   try {
     const dataDirectory = path.join(process.cwd(), "public/data");
+    
+    // Check if directory exists
+    if (!fs.existsSync(dataDirectory)) {
+      console.log("Data directory does not exist, returning empty array");
+      return NextResponse.json([]);
+    }
+    
     const files = fs.readdirSync(dataDirectory);
 
     const csvFiles = files

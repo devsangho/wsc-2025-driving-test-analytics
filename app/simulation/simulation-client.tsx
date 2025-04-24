@@ -21,7 +21,7 @@ import { TerrainProfile } from "./components/terrain-profile";
 import { BATTERY_SPEC } from "./utils/battery-model";
 
 // 참고: 현재 사용 가능한 날씨 데이터 날짜 범위 (2023-08-18 ~ 2023-09-15)
-// 2025년 및 다른 연도 사용 시 월/일 기준으로 2023년 데이터를 자동 매핑
+// 2025년 및 다른 연도 사용 시 8/24 기준으로 날짜 매핑
 const AVAILABLE_WEATHER_DATA_START = new Date("2023-08-18");
 const AVAILABLE_WEATHER_DATA_END = new Date("2023-09-15");
 const MAX_SIMULATION_DAYS = 30; // 최대 시뮬레이션 일수
@@ -43,7 +43,7 @@ export function SimulationClient() {
     mpptEfficiency: 0.98,
     avgSpeed: 60.0,
     energyEfficiency: 10.0, // km/kWh
-    startDate: new Date("2025-10-22"), // WSC 2025 기준 날짜
+    startDate: new Date("2025-08-24"), // WSC 2025 기준 날짜 (8/24로 변경)
     timeOfDay: 12,
     currentLocation: WSC_LOCATIONS[0], // Default to Adelaide
     lowBatteryThreshold: 25, // 배터리 충전이 필요한 임계값 (%)
@@ -135,7 +135,7 @@ export function SimulationClient() {
                         date && handleParamChange("startDate", date)
                       }
                       disabled={(date) =>
-                        date < new Date("2025-10-01") || date > new Date("2025-10-31")
+                        date < new Date("2025-08-01") || date > new Date("2025-09-30")
                       }
                       initialFocus
                     />

@@ -145,10 +145,11 @@ export async function createRouteItinerary(
     }
     
     // 진행 상황 확인하여 무한 루프 감지
-    if (Math.abs(remainingDistance - previousRemainingDistance) < 0.001) {
+    if (Math.abs(remainingDistance - previousRemainingDistance) < 0.5) {
       stuckCounter++;
-      if (stuckCounter >= 3) {
-        console.error("No progress made in route planning for 3 consecutive days, aborting");
+      console.warn(`Limited progress detected on day ${currentDay}. Previous: ${previousRemainingDistance.toFixed(1)}km, Current: ${remainingDistance.toFixed(1)}km, Stuck counter: ${stuckCounter}/5`);
+      if (stuckCounter >= 5) {
+        console.error("No significant progress made in route planning for 5 consecutive days, aborting");
         break;
       }
     } else {

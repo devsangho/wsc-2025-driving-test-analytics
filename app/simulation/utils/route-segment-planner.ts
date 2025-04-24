@@ -6,7 +6,8 @@ import { ControlStop, RouteSegment, SimulationParameters } from "./route-planner
 import { 
   calculateSegmentEnergyConsumption, 
   calculateSegmentEnergyProduction,
-  updateBatteryLevel
+  updateBatteryLevel,
+  SolarProductionCache
 } from "./energy-calculator";
 import { TerrainPoint } from "./terrain-utils";
 
@@ -31,6 +32,8 @@ interface DailySegmentPlanResult {
  * 일일 경로 세그먼트 및 배터리 관리 로직을 담당
  */
 export class RouteSegmentPlanner {
+  private solarCache = new SolarProductionCache();
+
   /**
    * 하루의 경로 세그먼트 및 배터리 관리 계획 생성
    */
@@ -60,6 +63,13 @@ export class RouteSegmentPlanner {
     let upcomingControlStops = controlStops.filter(
       stop => stop.distance > currentPosition
     ).sort((a, b) => a.distance - b.distance);
+    
+    // 날짜에 해당하는 총 태양광 발전량 가져오기
+    const dayTotalEnergy = await this.solarCache.getSolarProduction(
+      dateString,
+      params.panelArea,
+      params.panelEfficiency
+    );
     
     // 하루 주행 계획 루프
     while (remainingDrivingHours > 0 && !dayCompleted && remainingDistance > 0) {
@@ -113,7 +123,7 @@ export class RouteSegmentPlanner {
       // 세그먼트 에너지 생산량 계산
       const energyProduction = calculateSegmentEnergyProduction(
         segmentDrivingTime,
-        8, // 일반적인 일일 주행 시간 값
+        dayTotalEnergy, // 캐시에서 가져온 날짜별 발전량 사용
         params.drivingHoursPerDay,
         params.mpptEfficiency
       );
